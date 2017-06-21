@@ -29,3 +29,6 @@ dsdlc_generated
 
 # PlatformIO ini file
 platformio.ini
+
+# QT Creater
+CMakeLists.txt.user
