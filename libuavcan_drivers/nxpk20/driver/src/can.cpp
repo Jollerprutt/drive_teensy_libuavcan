@@ -4,13 +4,13 @@
  */
 
 #include <Arduino.h>
-#include <uavcan_teensy32/can.hpp>
-#include <uavcan_teensy32/clock.hpp>
+#include <uavcan_nxpk20/can.hpp>
+#include <uavcan_nxpk20/clock.hpp>
 #include "kinetis_flexcan.h"
 
 using namespace uavcan;
 
-namespace uavcan_teensy32
+namespace uavcan_nxpk20
 {
 
 // wait until the address bit is set in flexcan register

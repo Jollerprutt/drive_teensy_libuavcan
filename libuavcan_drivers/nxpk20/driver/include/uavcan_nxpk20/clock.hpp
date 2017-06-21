@@ -7,7 +7,7 @@
 
 #include <uavcan/driver/system_clock.hpp>
 
-namespace uavcan_teensy32
+namespace uavcan_nxpk20
 {
 namespace clock
 {
@@ -75,4 +75,4 @@ private:
 };
 
 
-} // uavcan_teensy32
+} // uavcan_nxpk20

@@ -7,7 +7,7 @@
 
 #include <uavcan/driver/can.hpp>
 
-namespace uavcan_teensy32
+namespace uavcan_nxpk20
 {
 
 /*
@@ -103,4 +103,4 @@ public:
 
 };
 
-} // uavcan_teensy32
+} // uavcan_nxpk20

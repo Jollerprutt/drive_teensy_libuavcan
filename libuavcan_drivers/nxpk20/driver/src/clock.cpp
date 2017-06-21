@@ -3,9 +3,9 @@
  * @author fwindolf - Florian Windolf  florianwindolf@gmail.com
  */
 
-#include <uavcan_teensy32/clock.hpp>
+#include <uavcan_nxpk20/clock.hpp>
 
-namespace uavcan_teensy32
+namespace uavcan_nxpk20
 {
 namespace clock
 {
@@ -95,4 +95,4 @@ SystemClock& SystemClock::instance()
   return self;
 }
 
-} // uavcan_teensy32
+} // uavcan_nxpk20
