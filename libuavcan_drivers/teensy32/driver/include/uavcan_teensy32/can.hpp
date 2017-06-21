@@ -22,7 +22,7 @@ class CanDriver:
 private:
   static CanDriver self;
 
-  CanDriver() { }
+  CanDriver();
 
 
 public:
