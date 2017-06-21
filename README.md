@@ -13,6 +13,7 @@ UAVCAN is a lightweight protocol designed for reliable communication in aerospac
 * [Libuavcan overview](http://uavcan.org/Implementations/Libuavcan/)
 * [List of platforms officially supported by libuavcan](http://uavcan.org/Implementations/Libuavcan/Platforms/)
 * [Libuavcan tutorials](http://uavcan.org/Implementations/Libuavcan/Tutorials/)
+* [Teensy CMake](https://github.com/xya/teensy-cmake)
 
 ## Library usage
 
@@ -22,9 +23,6 @@ UAVCAN is a lightweight protocol designed for reliable communication in aerospac
 * [Arduino IDE](https://www.arduino.cc/en/main/software)
 * [Teensyduino](https://www.pjrc.com/teensy/td_download.html)
 * [GCC ARM Embedded](https://launchpad.net/gcc-arm-embedded)
-
-Note that this reporitory includes [Pyuavcan](http://uavcan.org/Implementations/Pyuavcan) as a submodule.
-Such inclusion enables the library to be built even if pyuavcan is not installed in the system.
 
 Install Arduino and Teensyduino (for example in /opt).
 
@@ -37,7 +35,16 @@ git checkout <correct branch>
 git submodule update --init
 ```
 
-Change paths and device settings in `cmake/teensy-arm.toolchain.cmake`.
+Change paths in `cmake/teensy-arm.toolchain.cmake`:
+* `TOOLCHAIN_ROOT`
+* `TEENSY_CORES_ROOT`
+* `ARDUINO_LIB_ROOT`
+
+You may need to change software version in `cmake/teensy-arm.toolchain.cmake`:
+* `ARDUINO_VERSION`
+* `TEENSYDUINO_VERSION`
+
+Device settings should be correct for Teensy 3.2.
 
 
 ### Building and installing
