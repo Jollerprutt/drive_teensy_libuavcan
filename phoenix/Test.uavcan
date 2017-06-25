@@ -1,0 +1,3 @@
+# Test frame, requests current time only
+
+uavcan.Timestamp time

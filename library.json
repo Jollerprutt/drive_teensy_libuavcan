@@ -14,8 +14,9 @@
   "platforms" : "teensy",
   "build": {
       "flags": [
-          "-I libuavcan/include"
+          "-I libuavcan/include",
+          "-I libuavcan_drivers/nxpk20/driver/include"
       ],
-      "extraScript": "libuavcan/libuavcan/dsdl-compiler/libuavcan_dsdlc -Iuavcan/dsdl/uavcan/"
-  },
+      "extraScript": "build.py"
+  }
 }
