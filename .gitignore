@@ -50,3 +50,7 @@ libuavcan/include/uavcan/protocol/dynamic_node_id/
 libuavcan/include/uavcan/protocol/enumeration/
 libuavcan/include/uavcan/protocol/file/
 libuavcan/include/uavcan/protocol/param/
+
+# Copied sources
+src/*
+!src/UAVCAN.hpp

@@ -68,7 +68,7 @@ uavcan::UtcTime getUtc()
 
 void adjustUtc(uavcan::UtcDuration adjustment)
 {
-  const std::int64_t adj_delta = adjustment.toUSec() - prev_adjustment;
+  // const std::int64_t adj_delta = adjustment.toUSec() - prev_adjustment;
   prev_adjustment = adjustment.toUSec();
 
   // On first time

@@ -3,7 +3,9 @@
  * @author fwindolf - Florian Windolf  florianwindolf@gmail.com
  */
 
-#pragma once
+#ifndef UAVCAN_NXPK20_CAN_HPP_INCLUDED
+#define UAVCAN_NXPK20_CAN_HPP_INCLUDED
+
 
 #include <uavcan/driver/can.hpp>
 
@@ -94,3 +96,5 @@ public:
 };
 
 } // uavcan_nxpk20
+
+#endif // UAVCAN_NXPK20_CAN_HPP_INCLUDED

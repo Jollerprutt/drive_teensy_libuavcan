@@ -66,6 +66,7 @@ uint32_t CanDriver::detectBitRate()
   return 500000;
 }
 
+
 int CanDriver::init(uint32_t bitrate, uint32_t id)
 {
   switch(bitrate)
@@ -119,10 +120,10 @@ int CanDriver::init(uint32_t bitrate, uint32_t id)
 }
 
 
-int16_t CanDriver::int16_t send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
+int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
 {
   // Frame was not transmitted until tx deadline
-  if(clock::getMonotonic() - tx_deadline <= 0)
+  if(!tx_deadline.isZero() && clock::getMonotonic() >= tx_deadline)
   {
     return -1;
   }
@@ -139,7 +140,7 @@ int16_t CanDriver::int16_t send(const CanFrame& frame, MonotonicTime tx_deadline
       break;
     }
     // If there is no deadline for transmission, check all available buffers
-    if(!tx_deadline)
+    if(tx_deadline.isZero())
     {
       // Already checked every available buffer?
       if(i > TX_BUFFER_FIRST + TX_BUFFER_COUNT)
@@ -151,7 +152,7 @@ int16_t CanDriver::int16_t send(const CanFrame& frame, MonotonicTime tx_deadline
     else
     {
       // Check if timed out
-      if(clock::getMonotonic() - tx_deadline <= 0)
+      if(clock::getMonotonic() >= tx_deadline)
       {
         return -1; // too late
       }
@@ -166,16 +167,16 @@ int16_t CanDriver::int16_t send(const CanFrame& frame, MonotonicTime tx_deadline
   // Set header
   if(frame.isExtended())
   {
-    FLEXCAN_MBn_ID(FLEXCAN0_BASE, buffer) = (frame.id & FLEXCAN_MB_ID_EXT_MASK);
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, buffer) = (frame.id & FLEXCAN_MB_ID_EXT_MASK);
   }
   else
   {
-    FLEXCAN_MBn_ID(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_ID_IDSTD(frame.id);
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_ID_IDSTD(frame.id);
   }
 
   // Transfer data to the buffer
-  FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, buffer) = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | (frame.data[3]);
-  FLEXCANb_MBn_WORD2(FLEXCAN0_BASE, buffer) = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | (frame.data[7]);
+  FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, buffer) = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | (frame.data[3]);
+  FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, buffer) = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | (frame.data[7]);
 
   // Start transmission
   if(frame.isExtended())
@@ -196,22 +197,21 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
                         CanIOFlags& out_flags)
 {
   // Check if a new frame is available
-  if(FLEXCANb_IFLAG1(flexcanBase) & FLEXCAN_IMASK1_BUF5M == 0)
+  if((FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M) == 0)
   {
     return 0;
   }
 
   // save timestamp
   out_ts_monotonic = clock::getMonotonic();
-  out_ts_utc = 0; // TODO: change to clock::getUtc() when properly implemented
+  out_ts_utc = UtcTime(); // TODO: change to clock::getUtc() when properly implemented
 
   // get identifier and dlc
   out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST));
-  out_frame.ext = (FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_CS_IDE) ? 1 : 0;
   out_frame.id = (FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_ID_EXT_MASK) ? 1 : 0;
 
   // shift id to the right position if non-extended id
-  if(!out_frame.ext)
+  if(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_CS_IDE)
   {
     out_frame.id >>= FLEXCAN_MB_ID_STD_BIT_NO;
   }
@@ -240,7 +240,6 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
 
   // set read flags
   FLEXCANb_IFLAG1(FLEXCAN0_BASE) = FLEXCAN_IMASK1_BUF5M;
-
   return 1;
 }
 

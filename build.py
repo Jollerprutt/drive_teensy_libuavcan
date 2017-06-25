@@ -29,15 +29,23 @@ subprocess.call( ['python', dsdlc] + dirs + ['-Olibuavcan/include'])
 print("Copying sources so PlatformIO will find them")
 def copydir(src, dest):
     # print("Copying everything from " + str(src) + " to " + str(dest))
-    for root, dirs, files in os.walk(src):
-        for f in files:
-            # shutil.copy will overwrite
-            shutil.copy(os.path.join(root, f), dest)
-        for d in dirs:
-            shutil.rmtree(os.path.join(dest, d))
-            shutil.copytree(os.path.join(root, d), os.path.join(dest, d))
-        # dont dig deeper
-        del dirs[:]
+    try:
+        for root, dirs, files in os.walk(src):
+            for f in files:
+                # shutil.copy will overwrite
+                shutil.copy(os.path.join(root, f), dest)
+            for d in dirs:
+                # shutil.copytree will not overwrite, remove first
+                if(os.path.exists(os.path.join(dest, d))):
+                    shutil.rmtree(os.path.join(dest, d))
+                shutil.copytree(os.path.join(root, d), os.path.join(dest, d))
+            # dont dig deeper
+            del dirs[:]
+    except err:
+        print("Some files/directories could not be copied: ", str(err))
+
 
 copydir(os.path.join(cwd, 'libuavcan', 'src'), os.path.join(cwd, 'src'))
 copydir(os.path.join(cwd, 'libuavcan_drivers', 'nxpk20', 'driver', 'src'), os.path.join(cwd, 'src'))
+
+print("Done setting up build environment")
