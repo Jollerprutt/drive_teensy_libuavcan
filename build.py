@@ -1,7 +1,7 @@
 # The build system in PlatformIO is based on SCon
 import os
 import subprocess
-
+import shutil
 
 # create SCon environment
 env = Environment()
@@ -25,3 +25,19 @@ print("Running DSDL Compiler")
 # Run the DSDL compiler on all previously defined directories and put the
 # output into the libuavcan/include directory
 subprocess.call( ['python', dsdlc] + dirs + ['-Olibuavcan/include'])
+
+print("Copying sources so PlatformIO will find them")
+def copydir(src, dest):
+    # print("Copying everything from " + str(src) + " to " + str(dest))
+    for root, dirs, files in os.walk(src):
+        for f in files:
+            # shutil.copy will overwrite
+            shutil.copy(os.path.join(root, f), dest)
+        for d in dirs:
+            shutil.rmtree(os.path.join(dest, d))
+            shutil.copytree(os.path.join(root, d), os.path.join(dest, d))
+        # dont dig deeper
+        del dirs[:]
+
+copydir(os.path.join(cwd, 'libuavcan', 'src'), os.path.join(cwd, 'src'))
+copydir(os.path.join(cwd, 'libuavcan_drivers', 'nxpk20', 'driver', 'src'), os.path.join(cwd, 'src'))
