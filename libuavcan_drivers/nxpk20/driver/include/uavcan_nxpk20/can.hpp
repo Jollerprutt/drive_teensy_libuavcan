@@ -26,7 +26,8 @@ private:
 
   CanDriver();
 
-
+  uavcan::uint32_t errorCount;
+  
 public:
   /**
    * Returns the only reference.
@@ -45,22 +46,7 @@ public:
    * @return On success: zero
    *         On failure (baudrate cannot be used): negative number
    */
-  int init(uavcan::uint32_t bitrate, uavcan::uint32_t id);
-
-  /**
-   * Check if there was any activity on CAN bus after last call
-   */
-  bool hadActivity();
-
-  /**
-   * Returns the number of times the RX queue was overrun.
-   */
-  uavcan::uint32_t getRxQueueOverflowCount() const;
-
-  /**
-   * Check if  controller is currently in bus off state.
-   */
-  bool isInBusOffState() const;
+  int init(uavcan::uint32_t bitrate);
 
   /**
    * Send a frame before tx_deadline

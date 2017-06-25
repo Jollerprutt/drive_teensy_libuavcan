@@ -33,6 +33,7 @@ static void fail()
 
 void init()
 {
+  Serial.println("SystemClock init");
   if(!initialized)
   {
     initialized = true;
@@ -42,6 +43,7 @@ void init()
 
 uavcan::MonotonicTime getMonotonic()
 {
+  Serial.println("SystemClock getMonotonic");
   if(!initialized)
   {
     fail();
@@ -91,6 +93,7 @@ SystemClock SystemClock::self;
 
 SystemClock& SystemClock::instance()
 {
+  Serial.println("SystemClock instance");
   clock::init();
   return self;
 }

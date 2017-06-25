@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <Arduino.h>
 #include <uavcan/uavcan.hpp>
 #include <uavcan_nxpk20/uavcan_nxpk20.hpp>
 
