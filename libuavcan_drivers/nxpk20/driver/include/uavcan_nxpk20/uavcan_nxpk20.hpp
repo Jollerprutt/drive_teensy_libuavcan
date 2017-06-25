@@ -5,6 +5,6 @@
 
 #pragma once
 
-#include <uavcan.hpp>
+#include <uavcan/uavcan.hpp>
 #include <uavcan_nxpk20/can.hpp>
 #include <uavcan_nxpk20/clock.hpp>
