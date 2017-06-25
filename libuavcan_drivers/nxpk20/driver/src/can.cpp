@@ -13,16 +13,6 @@ using namespace uavcan;
 namespace uavcan_nxpk20
 {
 
-// wait until the address bit is set in flexcan register
-void wait_for(auto address)
-{
-  while(FLEXCANb_MCR(FLEXCAN0_BASE) & address)
-  {
-    ; // do nothing
-  }
-}
-
-
 #define FLEXCANb_MCR(b)                   (*(vuint32_t*)(b))
 #define FLEXCANb_CTRL1(b)                 (*(vuint32_t*)(b+4))
 #define FLEXCANb_RXMGMASK(b)              (*(vuint32_t*)(b+0x10))
@@ -33,6 +23,7 @@ void wait_for(auto address)
 #define FLEXCANb_MBn_WORD0(b, n)          (*(vuint32_t*)(b+0x88+n*0x10))
 #define FLEXCANb_MBn_WORD1(b, n)          (*(vuint32_t*)(b+0x8C+n*0x10))
 #define FLEXCANb_IDFLT_TAB(b, n)          (*(vuint32_t*)(b+0xE0+(n*4)))
+
 
 // Buffers before first are occupied by FIFO
 #define TX_BUFFER_FIRST                   8
@@ -52,13 +43,14 @@ CanDriver::CanDriver()
   // enable CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
-  wait_for(FLEXCAN_MCR_MDIS);
+  // wait until enabled bit is set
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_MDIS) {;}
 
   // do soft reset
   FLEXCANb_MCR(FLEXCAN0_BASE) ^= FLEXCAN_MCR_SOFT_RST;
-  wait_for(FLEXCAN_MCR_SOFT_RST);
-
-  wait_for(FLEXCAN_MCR_FRZ_ACK);
+  // wait for soft reset came through and freeze acknwoledge
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_SOFT_RST) {;}
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
 
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
@@ -69,15 +61,14 @@ CanDriver::CanDriver()
 
 
 // TODO: provide implementation
-uint32_t CanDriver::detectBitRate(void (*idle_callback)() = nullptr)
+uint32_t CanDriver::detectBitRate()
 {
   return 500000;
 }
 
-
-int CanDriver::init(uint32_t bitrate, uint32t id)
+int CanDriver::init(uint32_t bitrate, uint32_t id)
 {
-  switch(baudrate)
+  switch(bitrate)
   {
     case 50000:
       FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
@@ -114,16 +105,19 @@ int CanDriver::init(uint32_t bitrate, uint32t id)
   FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
 
   // start the CAN
-  FLECANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
-  wait_for(FLEXCAN_MCR_FRZ_ACK);
-  wait_for(FLEXCAN_MCR_NOT_RDY);
+  FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
+  // wait until freeze acknowledged and not ready bit set
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
   // activate tx buffers
   for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
   {
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
+  return 0;
 }
+
 
 int16_t CanDriver::int16_t send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
 {
@@ -249,3 +243,5 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
 
   return 1;
 }
+
+} // uavcan_nxpk20

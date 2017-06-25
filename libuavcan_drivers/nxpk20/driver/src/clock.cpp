@@ -2,7 +2,7 @@
  * Teensy 3.2 header for UAVCAN
  * @author fwindolf - Florian Windolf  florianwindolf@gmail.com
  */
-
+#include <Arduino.h>
 #include <uavcan_nxpk20/clock.hpp>
 
 namespace uavcan_nxpk20

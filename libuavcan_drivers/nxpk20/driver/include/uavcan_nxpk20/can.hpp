@@ -22,7 +22,7 @@ class CanDriver:
 private:
   static CanDriver self;
 
-  CanDriver() { }
+  CanDriver();
 
 
 public:
@@ -36,24 +36,14 @@ public:
    * @return On success: detected bit rate, in bits per second.
    *         On failure: zero.
    */
-  static uavcan::uint32_t detectBitRate(void (*idle_callback)() = nullptr);
+  static uavcan::uint32_t detectBitRate();
 
   /**
    * Initialize the driver
    * @return On success: zero
    *         On failure (baudrate cannot be used): negative number
    */
-  int init(uavcan::uint32_t bitrate);
-
-  /**
-   * Get state of RX queue
-   */
-  bool hasReadyRx() const;
-
-  /**
-   * Get state of TX queue
-   */
-  bool hasEmptyTx() const;
+  int init(uavcan::uint32_t bitrate, uavcan::uint32_t id);
 
   /**
    * Check if there was any activity on CAN bus after last call
