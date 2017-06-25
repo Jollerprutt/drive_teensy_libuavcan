@@ -1,0 +1,21 @@
+{
+  "name" : "libuavcan",
+  "repository":
+  {
+      "type": "git",
+      "url": "https://github.com/tum-phoenix/drive_teensy_libuavcan.git"
+  },
+  "version": "0.0.0",
+  "authors":
+  {
+      "name": "Florian Windolf",
+      "email": "florianwindolf@gmail.com"
+  },
+  "platforms" : "teensy",
+  "build": {
+      "flags": [
+          "-I libuavcan/include"
+      ],
+      "extraScript": "libuavcan/libuavcan/dsdl-compiler/libuavcan_dsdlc -Iuavcan/dsdl/uavcan/"
+  },
+}
