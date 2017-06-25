@@ -4,5 +4,5 @@
 
 #pragma once
 
-#include "../libuavcan/include/uavcan/uavcan.hpp"
-#include "../libuavcan/libuavcan_drivers/nxpk20/driver/include/uavcan_nxpk20/uavcan_nxpk20.hpp"
+#include <uavcan/uavcan.hpp>
+#include <uavcan_nxpk20/uavcan_nxpk20.hpp>

@@ -11,23 +11,12 @@ cwd = os.getcwd()
 
 dsdlc = os.path.join(cwd, 'libuavcan', 'dsdl_compiler', 'libuavcan_dsdlc')
 
+# Update submodules dsdl, pyuavcan in order to be able to build headers
+# with the dsdlc
 print("Update git submodules...")
 subprocess.call(['git', 'submodule', 'update', '--init', '--recursive'])
 
-# print("Installing DSDL Compiler")
-# os.chdir(os.path.join(cwd, 'libuavcan', 'dsdl_compiler'))
-# subprocess.call(['python', 'setup.py', 'install', '--record', 'installed_files.log', '-q'])
-# subprocess.call(['python', 'setup.py', 'build', '-q'])
-# os.chdir(cwd)
-
-# print("Finding *.uavcan files")
-# files = list()
-# for root, dirs, filenames in os.walk('dsdl' + os.path.sep + 'uavcan'):
-#     for f in filenames:
-#         if f.endswith('.uavcan'):
-#             filepath = os.path.join(root, f)
-#             print(filepath)
-#             files.append(os.path.join(cwd, filepath))
+# Collect all paths that contain .uavcan files
 dirs = list()
 dirs.append(os.path.join(cwd, 'dsdl', 'uavcan'))
 dirs.append(os.path.join(cwd, 'phoenix'))
