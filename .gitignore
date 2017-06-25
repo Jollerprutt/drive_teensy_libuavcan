@@ -27,5 +27,26 @@ dsdlc_generated
 .clang_complete
 .gcc-flags.json
 
-# PlatformIO ini file
-platformio.ini
+# UAVCAN headers
+libuavcan/include/phoenix/
+libuavcan/include/uavcan/CoarseOrientation.hpp
+libuavcan/include/uavcan/Timestamp.hpp
+libuavcan/include/uavcan/equipment/
+libuavcan/include/uavcan/navigation/
+libuavcan/include/uavcan/protocol/AccessCommandShell.hpp
+libuavcan/include/uavcan/protocol/CANIfaceStats.hpp
+libuavcan/include/uavcan/protocol/DataTypeKind.hpp
+libuavcan/include/uavcan/protocol/GetDataTypeInfo.hpp
+libuavcan/include/uavcan/protocol/GetNodeInfo.hpp
+libuavcan/include/uavcan/protocol/GetTransportStats.hpp
+libuavcan/include/uavcan/protocol/GlobalTimeSync.hpp
+libuavcan/include/uavcan/protocol/HardwareVersion.hpp
+libuavcan/include/uavcan/protocol/NodeStatus.hpp
+libuavcan/include/uavcan/protocol/Panic.hpp
+libuavcan/include/uavcan/protocol/RestartNode.hpp
+libuavcan/include/uavcan/protocol/SoftwareVersion.hpp
+libuavcan/include/uavcan/protocol/debug/
+libuavcan/include/uavcan/protocol/dynamic_node_id/
+libuavcan/include/uavcan/protocol/enumeration/
+libuavcan/include/uavcan/protocol/file/
+libuavcan/include/uavcan/protocol/param/
