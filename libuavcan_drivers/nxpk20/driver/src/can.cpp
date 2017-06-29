@@ -54,6 +54,8 @@ CanDriver::CanDriver()
   FLEXCANb_MCR(FLEXCAN0_BASE) ^= FLEXCAN_MCR_SOFT_RST;
   // wait for soft reset came through and freeze acknwoledge
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_SOFT_RST) {;}
+  // while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
+
 
   Serial.println("CanDriver disable self-reception");
   // disable self-reception
@@ -68,6 +70,7 @@ CanDriver::CanDriver()
 // TODO: provide implementation
 uint32_t CanDriver::detectBitRate()
 {
+  Serial.println("CanDriver detectBitRate");
   return 500000;
 }
 
@@ -210,6 +213,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   // Check if a new frame is available
   if((FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M) == 0)
   {
+    Serial.println("CanDriver no new frame available");
     return 0;
   }
 
@@ -217,6 +221,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   out_ts_monotonic = clock::getMonotonic();
   out_ts_utc = UtcTime(); // TODO: change to clock::getUtc() when properly implemented
 
+  Serial.println("CanDriver processing new frame");
   // get identifier and dlc
   out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST));
   out_frame.id = (FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_ID_EXT_MASK) ? 1 : 0;
@@ -259,6 +264,7 @@ int16_t CanDriver::select(CanSelectMasks& inout_masks,
                        const CanFrame* (&)[MaxCanIfaces],
                        MonotonicTime blocking_deadline)
 {
+  Serial.println("CanDriver select");
   // TODO: Provide implementation
   return 0;
 }
@@ -266,17 +272,20 @@ int16_t CanDriver::select(CanSelectMasks& inout_masks,
 int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
                          uint16_t num_configs)
 {
+  Serial.println("CanDriver configureFilters");
  // TODO: Provide implementation
  return 0;
 }
 
 uint64_t CanDriver::getErrorCount() const
 {
+  Serial.println("CanDriver getErrorCount");
   return errorCount;
 }
 
 uint16_t CanDriver::getNumFilters() const
 {
+  Serial.println("CanDriver getNumFilters");
   // TODO: Provide implementation
   return 0;
 }
@@ -284,14 +293,15 @@ uint16_t CanDriver::getNumFilters() const
 
 ICanIface* CanDriver::getIface(uint8_t iface_index)
 {
-  // TODO: Provide implementation
-  return nullptr;
+  Serial.println("CanDriver getIface");
+  return (ICanIface*) &self;
 }
 
 uint8_t CanDriver::getNumIfaces() const
 {
+  Serial.println("CanDriver getNumIfaces");
   // TODO: Provide implementation
-  return 0;
+  return 1;
 }
 
 } // uavcan_nxpk20

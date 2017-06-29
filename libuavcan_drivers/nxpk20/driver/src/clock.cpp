@@ -25,6 +25,7 @@ __attribute__((noreturn))
 #endif
 static void fail()
 {
+  Serial.println("SystemClock failing... only reset helps now!");
   while(true) {}
 }
 
@@ -54,11 +55,7 @@ uavcan::MonotonicTime getMonotonic()
 
 uavcan::UtcTime getUtc()
 {
-  if(!initialized)
-  {
-    fail();
-  }
-
+  Serial.println("SystemClock getUtc");
   // Only return the time if time was adjusted
   std::uint64_t _usec = 0;
   if(utc_set)
@@ -70,6 +67,7 @@ uavcan::UtcTime getUtc()
 
 void adjustUtc(uavcan::UtcDuration adjustment)
 {
+  Serial.println("SystemClock adjustUtc");
   // const std::int64_t adj_delta = adjustment.toUSec() - prev_adjustment;
   prev_adjustment = adjustment.toUSec();
 
