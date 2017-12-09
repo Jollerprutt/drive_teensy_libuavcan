@@ -113,6 +113,21 @@ int CanDriver::init(uint32_t bitrate)
   // set default filter mask
   FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
 
+  // default mask is allow everything
+  CAN_filter_t mask;
+  mask.ext =  0;
+  mask.id = 0;
+  mask.rtr = 0;
+
+
+  //enable reception of all messages that fit the mask
+  if (mask.ext) {
+    FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | ((mask.id & FLEXCAN_MB_ID_EXT_MASK) << 1);
+  } else {
+    FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | (FLEXCAN_MB_ID_IDSTD(mask.id) << 1);
+  }
+
+
   //Serial.println("CanDriver start CAN");
   // start the CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
@@ -267,9 +282,8 @@ int16_t CanDriver::select(CanSelectMasks& inout_masks,
   //Serial.println("CanDriver select");
   // TODO: Provide implementation
 
-  // for now: pretend there is nothing there
-  inout_masks.read = 0;
-
+  // does this work?
+  inout_masks.read = (FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M)? 1:0;
 
   return 0;
 }
@@ -279,6 +293,10 @@ int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
 {
   //Serial.println("CanDriver configureFilters");
  // TODO: Provide implementation
+
+
+
+
  return 0;
 }
 

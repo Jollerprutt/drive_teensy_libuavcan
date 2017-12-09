@@ -12,6 +12,12 @@
 namespace uavcan_nxpk20
 {
 
+  typedef struct CAN_filter_t {
+  uint8_t rtr;
+  uint8_t ext;
+  uint32_t id;
+} CAN_filter_t;
+
 /*
  * Implement the CAN Interfaces in non-redundant way
  * Singleton class
@@ -27,7 +33,7 @@ private:
   CanDriver();
 
   uavcan::uint32_t errorCount;
-  
+
 public:
   /**
    * Returns the only reference.
