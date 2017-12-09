@@ -43,7 +43,7 @@ CanDriver::CanDriver()
   SIM_SCGC6 |= SIM_SCGC6_FLEXCAN0;
   FLEXCANb_CTRL1(FLEXCAN0_BASE) &= ~FLEXCAN_CTRL_CLK_SRC;
 
-  Serial.println("CanDriver enable CAN");
+  //Serial.println("CanDriver enable CAN");
   // enable CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
@@ -57,11 +57,11 @@ CanDriver::CanDriver()
   // while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
 
 
-  Serial.println("CanDriver disable self-reception");
+  //Serial.println("CanDriver disable self-reception");
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
 
-  Serial.println("CanDriver enable RX FIFO");
+  //Serial.println("CanDriver enable RX FIFO");
   // enable RX FIFO
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FEN;
 }
@@ -70,13 +70,13 @@ CanDriver::CanDriver()
 // TODO: provide implementation
 uint32_t CanDriver::detectBitRate()
 {
-  Serial.println("CanDriver detectBitRate");
+  //Serial.println("CanDriver detectBitRate");
   return 500000;
 }
 
 int CanDriver::init(uint32_t bitrate)
 {
-  Serial.println("CanDriver init");
+  //Serial.println("CanDriver init");
   switch(bitrate)
   {
     case 50000:
@@ -113,15 +113,15 @@ int CanDriver::init(uint32_t bitrate)
   // set default filter mask
   FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
 
-  Serial.println("CanDriver start CAN");
+  //Serial.println("CanDriver start CAN");
   // start the CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
   // wait until freeze acknowledged and not ready bit set
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
-  Serial.println("CanDriver FRZ_ACK");
+  //Serial.println("CanDriver FRZ_ACK");
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
-  Serial.println("CanDriver activate RX buf");
+  //Serial.println("CanDriver activate RX buf");
   // activate tx buffers
   for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
   {
@@ -133,7 +133,7 @@ int CanDriver::init(uint32_t bitrate)
 
 int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
 {
-  Serial.println("CanDriver send");
+  //Serial.println("CanDriver send");
   // Frame was not transmitted until tx deadline
   if(!tx_deadline.isZero() && clock::getMonotonic() >= tx_deadline)
   {
@@ -173,7 +173,7 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
     yield();
   }
 
-  Serial.println("CanDriver transmit frame");
+  //Serial.println("CanDriver transmit frame");
   // Transmit the frame
   FLEXCANb_MBn_CS(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
 
@@ -209,11 +209,11 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
 int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, UtcTime& out_ts_utc,
                         CanIOFlags& out_flags)
 {
-  Serial.println("CanDriver receive");
+  //Serial.println("CanDriver receive");
   // Check if a new frame is available
   if((FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M) == 0)
   {
-    Serial.println("CanDriver no new frame available");
+    //Serial.println("CanDriver no new frame available");
     return 0;
   }
 
@@ -221,7 +221,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   out_ts_monotonic = clock::getMonotonic();
   out_ts_utc = UtcTime(); // TODO: change to clock::getUtc() when properly implemented
 
-  Serial.println("CanDriver processing new frame");
+  //Serial.println("CanDriver processing new frame");
   // get identifier and dlc
   out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST));
   out_frame.id = (FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_ID_EXT_MASK) ? 1 : 0;
@@ -232,7 +232,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
     out_frame.id >>= FLEXCAN_MB_ID_STD_BIT_NO;
   }
 
-  Serial.println("CanDriver copy message");
+  //Serial.println("CanDriver copy message");
   // copy data to message
   uint32_t data = FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, RX_BUFFER_FIRST);
   out_frame.data[3] = data;
@@ -254,7 +254,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
     data >>= 8;
     out_frame.data[4] = data;
   }
-  Serial.println("CanDriver set read flag");
+  //Serial.println("CanDriver set read flag");
   // set read flags
   FLEXCANb_IFLAG1(FLEXCAN0_BASE) = FLEXCAN_IMASK1_BUF5M;
   return 1;
@@ -264,28 +264,33 @@ int16_t CanDriver::select(CanSelectMasks& inout_masks,
                        const CanFrame* (&)[MaxCanIfaces],
                        MonotonicTime blocking_deadline)
 {
-  Serial.println("CanDriver select");
+  //Serial.println("CanDriver select");
   // TODO: Provide implementation
+
+  // for now: pretend there is nothing there
+  inout_masks.read = 0;
+
+
   return 0;
 }
 
 int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
                          uint16_t num_configs)
 {
-  Serial.println("CanDriver configureFilters");
+  //Serial.println("CanDriver configureFilters");
  // TODO: Provide implementation
  return 0;
 }
 
 uint64_t CanDriver::getErrorCount() const
 {
-  Serial.println("CanDriver getErrorCount");
+  //Serial.println("CanDriver getErrorCount");
   return errorCount;
 }
 
 uint16_t CanDriver::getNumFilters() const
 {
-  Serial.println("CanDriver getNumFilters");
+  //Serial.println("CanDriver getNumFilters");
   // TODO: Provide implementation
   return 0;
 }
@@ -293,13 +298,13 @@ uint16_t CanDriver::getNumFilters() const
 
 ICanIface* CanDriver::getIface(uint8_t iface_index)
 {
-  Serial.println("CanDriver getIface");
+  //Serial.println("CanDriver getIface");
   return (ICanIface*) &self;
 }
 
 uint8_t CanDriver::getNumIfaces() const
 {
-  Serial.println("CanDriver getNumIfaces");
+  //Serial.println("CanDriver getNumIfaces");
   // TODO: Provide implementation
   return 1;
 }
