@@ -34,7 +34,7 @@ static void fail()
 
 void init()
 {
-  Serial.println("SystemClock init");
+  //Serial.println("SystemClock init");
   if(!initialized)
   {
     initialized = true;
@@ -44,7 +44,7 @@ void init()
 
 uavcan::MonotonicTime getMonotonic()
 {
-  Serial.println("SystemClock getMonotonic");
+  //Serial.println("SystemClock getMonotonic");
   if(!initialized)
   {
     fail();
@@ -55,7 +55,7 @@ uavcan::MonotonicTime getMonotonic()
 
 uavcan::UtcTime getUtc()
 {
-  Serial.println("SystemClock getUtc");
+  //Serial.println("SystemClock getUtc");
   // Only return the time if time was adjusted
   std::uint64_t _usec = 0;
   if(utc_set)
@@ -67,7 +67,7 @@ uavcan::UtcTime getUtc()
 
 void adjustUtc(uavcan::UtcDuration adjustment)
 {
-  Serial.println("SystemClock adjustUtc");
+  //Serial.println("SystemClock adjustUtc");
   // const std::int64_t adj_delta = adjustment.toUSec() - prev_adjustment;
   prev_adjustment = adjustment.toUSec();
 
@@ -91,7 +91,7 @@ SystemClock SystemClock::self;
 
 SystemClock& SystemClock::instance()
 {
-  Serial.println("SystemClock instance");
+  //Serial.println("SystemClock instance");
   clock::init();
   return self;
 }

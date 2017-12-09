@@ -445,7 +445,7 @@ int CanIOManager::receive(CanRxFrame& out_frame, MonotonicTime blocking_deadline
     {
         CanSelectMasks masks;
         masks.write = makePendingTxMask();
-        masks.read = uint8_t((1 << num_ifaces) - 1);
+        masks.read = uint8_t(0); //TODO this was before: uint8_t((1 << num_ifaces) - 1);
         {
             const CanFrame* pending_tx[MaxCanIfaces] = {};
             for (int i = 0; i < num_ifaces; i++)      // Dear compiler, kindly unroll this. Thanks.
