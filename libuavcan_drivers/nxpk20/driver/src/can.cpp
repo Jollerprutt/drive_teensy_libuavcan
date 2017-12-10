@@ -32,6 +32,10 @@ namespace uavcan_nxpk20
 // Init static variable
 CanDriver CanDriver::self;
 
+// rxb?
+static const int rxb = 0;
+
+
 CanDriver::CanDriver()
  : errorCount(0)
 {
@@ -239,12 +243,15 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   //Serial.println("CanDriver processing new frame");
   // get identifier and dlc
   out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST));
-  out_frame.id = (FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_ID_EXT_MASK) ? 1 : 0;
+  out_frame.id = (FLEXCAN0_MBn_ID(rxb) & FLEXCAN_MB_ID_EXT_MASK);
 
-  // shift id to the right position if non-extended id
-  if(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST) & FLEXCAN_MB_CS_IDE)
-  {
+  // is extended identifier?
+  bool is_ext = (FLEXCAN0_MBn_CS(rxb) & FLEXCAN_MB_CS_IDE)? 1:0;
+  if(!is_ext){
     out_frame.id >>= FLEXCAN_MB_ID_STD_BIT_NO;
+  }else{
+    out_frame.id &= uavcan::CanFrame::MaskExtID;
+    out_frame.id |= uavcan::CanFrame::FlagEFF;
   }
 
   //Serial.println("CanDriver copy message");
