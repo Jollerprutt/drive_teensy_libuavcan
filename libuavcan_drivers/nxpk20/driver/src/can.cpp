@@ -35,6 +35,10 @@ CanDriver CanDriver::self;
 // rxb?
 static const int rxb = 0;
 
+// current tx_buffer to use
+static int tx_buffer = TX_BUFFER_FIRST;
+static MonotonicTime last_deadline = MonotonicTime::fromMSec(0);
+
 
 CanDriver::CanDriver()
  : errorCount(0)
@@ -75,7 +79,7 @@ CanDriver::CanDriver()
 uint32_t CanDriver::detectBitRate()
 {
   //Serial.println("CanDriver detectBitRate");
-  return 500000;
+  return 1000000;
 }
 
 int CanDriver::init(uint32_t bitrate)
@@ -131,8 +135,6 @@ int CanDriver::init(uint32_t bitrate)
     FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | (FLEXCAN_MB_ID_IDSTD(mask.id) << 1);
   }
 
-
-  //Serial.println("CanDriver start CAN");
   // start the CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
   // wait until freeze acknowledged and not ready bit set
@@ -140,86 +142,94 @@ int CanDriver::init(uint32_t bitrate)
   //Serial.println("CanDriver FRZ_ACK");
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
-  //Serial.println("CanDriver activate RX buf");
   // activate tx buffers
   for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
   {
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
+
+  //lowest buffers transmit first
+  FLEXCANb_CTRL1(FLEXCAN0_BASE) |= FLEXCAN_CTRL_LBUF;
+
   return 0;
 }
 
 
 int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
 {
-  //Serial.println("CanDriver send");
-  // Frame was not transmitted until tx deadline
-  if(!tx_deadline.isZero() && clock::getMonotonic() >= tx_deadline)
+  // Check if timed out
+  if(clock::getMonotonic() >= tx_deadline)
   {
-    return -1;
+    return -1; // too late
   }
 
-  // Search for available buffer
-  int buffer = -1;
-  for(int i = TX_BUFFER_FIRST; ;)
+  // check if we already got a message with this deadline
+  if(last_deadline == tx_deadline)
   {
-    // Check if this buffer is available
-    if((FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_CODE_MASK)
-        == FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE))
+
+    // use next buffer position
+    tx_buffer++;
+
+    // do another check if this buffer is inactive
+    if((FLEXCANb_MBn_CS(FLEXCAN0_BASE, tx_buffer) & FLEXCAN_MB_CS_CODE_MASK)
+                      != FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE))
+                      {
+                          // something went wrong
+                          return -1;
+                      }
+
+    // we reached the limit of available buffers
+    if(TX_BUFFER_COUNT-1 == tx_buffer-TX_BUFFER_FIRST)
     {
-      buffer = i;
-      break;
+      // reset old deadline
+      last_deadline = MonotonicTime::fromMSec(0);
     }
-    // If there is no deadline for transmission, check all available buffers
-    if(tx_deadline.isZero())
+
+  // we got a message with a new deadline
+  }else{
+
+    // check if all buffers are clean from previous messages
+    for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
     {
-      // Already checked every available buffer?
-      if(i > TX_BUFFER_FIRST + TX_BUFFER_COUNT)
-      {
-        return 0; // no more buffers to check
-      }
-      i++;
+      while((FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_CODE_MASK)
+                        != FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE))
+                        { } // wait here
     }
-    else
-    {
-      // Check if timed out
-      if(clock::getMonotonic() >= tx_deadline)
-      {
-        return -1; // too late
-      }
-    }
-    // pass on control to other tasks
-    yield();
+
+    // use first buffer
+    tx_buffer = TX_BUFFER_FIRST;
+
+    // remember deadline (maybe we get more messages with this deadline)
+    last_deadline = tx_deadline;
   }
 
-  //Serial.println("CanDriver transmit frame");
   // Transmit the frame
-  FLEXCANb_MBn_CS(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
+  FLEXCANb_MBn_CS(FLEXCAN0_BASE, tx_buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
 
   // Set header
   if(frame.isExtended())
   {
-    FLEXCANb_MBn_ID(FLEXCAN0_BASE, buffer) = (frame.id & FLEXCAN_MB_ID_EXT_MASK);
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, tx_buffer) = (frame.id & FLEXCAN_MB_ID_EXT_MASK);
   }
   else
   {
-    FLEXCANb_MBn_ID(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_ID_IDSTD(frame.id);
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, tx_buffer) = FLEXCAN_MB_ID_IDSTD(frame.id);
   }
 
   // Transfer data to the buffer
-  FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, buffer) = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | (frame.data[3]);
-  FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, buffer) = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | (frame.data[7]);
+  FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, tx_buffer) = (frame.data[0] << 24) | (frame.data[1] << 16) | (frame.data[2] << 8) | (frame.data[3]);
+  FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, tx_buffer) = (frame.data[4] << 24) | (frame.data[5] << 16) | (frame.data[6] << 8) | (frame.data[7]);
 
   // Start transmission
   if(frame.isExtended())
   {
-    FLEXCANb_MBn_CS(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_ONCE)
-                                         | FLEXCAN_MB_CS_LENGTH(frame.dlc) | FLEXCAN_MB_CS_SRR | FLEXCAN_MB_CS_IDE;
+    FLEXCANb_MBn_CS(FLEXCAN0_BASE, tx_buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_ONCE)
+                                              | FLEXCAN_MB_CS_LENGTH(frame.dlc) | FLEXCAN_MB_CS_SRR | FLEXCAN_MB_CS_IDE;
   }
   else
   {
-    FLEXCANb_MBn_CS(FLEXCAN0_BASE, buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_ONCE)
-                                         | FLEXCAN_MB_CS_LENGTH(frame.dlc);
+    FLEXCANb_MBn_CS(FLEXCAN0_BASE, tx_buffer) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_ONCE)
+                                              | FLEXCAN_MB_CS_LENGTH(frame.dlc);
   }
   return 1;
 }
@@ -299,6 +309,7 @@ int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
                          uint16_t num_configs)
 {
   //Serial.println("CanDriver configureFilters");
+  // more infos: http://uavcan.org/Implementations/Libuavcan/Tutorials/13._CAN_acceptance_filters/
  // TODO: Provide implementation
 
 
