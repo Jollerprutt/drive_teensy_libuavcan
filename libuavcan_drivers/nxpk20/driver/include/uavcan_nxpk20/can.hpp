@@ -35,7 +35,6 @@ private:
    */
   CanDriver();
 
-  uavcan::uint32_t errorCount;
 
 public:
   /**

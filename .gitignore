@@ -28,7 +28,6 @@ dsdlc_generated
 .gcc-flags.json
 
 # UAVCAN headers
-libuavcan/include/phoenix/
 libuavcan/include/uavcan/CoarseOrientation.hpp
 libuavcan/include/uavcan/Timestamp.hpp
 libuavcan/include/uavcan/equipment/

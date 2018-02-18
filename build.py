@@ -19,7 +19,6 @@ subprocess.call(['git', 'submodule', 'update', '--init', '--recursive'])
 # Collect all paths that contain .uavcan files
 dirs = list()
 dirs.append(os.path.join(cwd, 'dsdl', 'uavcan'))
-dirs.append(os.path.join(cwd, 'phoenix'))
 
 print("Running DSDL Compiler")
 # Run the DSDL compiler on all previously defined directories and put the

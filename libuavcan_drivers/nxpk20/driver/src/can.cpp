@@ -17,12 +17,14 @@ namespace uavcan_nxpk20
 #define FLEXCANb_MCR(b)                   (*(vuint32_t*)(b))
 #define FLEXCANb_CTRL1(b)                 (*(vuint32_t*)(b+4))
 #define FLEXCANb_RXMGMASK(b)              (*(vuint32_t*)(b+0x10))
+#define FLEXCANb_IMASK1(b)                (*(vuint32_t*)(b+0x28))
 #define FLEXCANb_IFLAG1(b)                (*(vuint32_t*)(b+0x30))
 #define FLEXCANb_RXFGMASK(b)              (*(vuint32_t*)(b+0x48))
 #define FLEXCANb_MBn_CS(b, n)             (*(vuint32_t*)(b+0x80+n*0x10))
 #define FLEXCANb_MBn_ID(b, n)             (*(vuint32_t*)(b+0x84+n*0x10))
 #define FLEXCANb_MBn_WORD0(b, n)          (*(vuint32_t*)(b+0x88+n*0x10))
 #define FLEXCANb_MBn_WORD1(b, n)          (*(vuint32_t*)(b+0x8C+n*0x10))
+#define FLEXCANb_MB_MASK(b, n)            (*(vuint32_t*)(b+0x880+(n*4)))
 #define FLEXCANb_IDFLT_TAB(b, n)          (*(vuint32_t*)(b+0xE0+(n*4)))
 
 // Buffers before first are occupied by FIFO
@@ -47,7 +49,6 @@ void wrongDevice()
 
 
 CanDriver::CanDriver()
- : errorCount(0)
 {
   // select pin setup
   #if defined(__MK20DX256__)
@@ -57,6 +58,8 @@ CanDriver::CanDriver()
     wrongDevice();
   #endif
 
+  // select clock source 16MHz xtal
+  OSC0_CR |= OSC_ERCLKEN;
   // select clock source
   SIM_SCGC6 |= SIM_SCGC6_FLEXCAN0;
   FLEXCANb_CTRL1(FLEXCAN0_BASE) &= ~FLEXCAN_CTRL_CLK_SRC;
@@ -65,6 +68,8 @@ CanDriver::CanDriver()
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
 
+  // wait until
+  while (FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_LPM_ACK){;}
   // wait until enabled bit is set
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_MDIS) {;}
 
@@ -73,6 +78,7 @@ CanDriver::CanDriver()
 
   // wait for soft reset came through and freeze acknwoledge
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_SOFT_RST) {;}
+  while(!(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK)) {;}
 
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
@@ -146,6 +152,14 @@ int CanDriver::init(uint32_t bitrate)
   // wait until freeze acknowledged and not ready bit set
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
+
+
+  // activate rx buffers
+  for(int i = 0; i < TX_BUFFER_FIRST; i++)
+  {
+    uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
+    FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
+  }
 
   // activate tx buffers
   for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
@@ -318,8 +332,13 @@ int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
 
 uint64_t CanDriver::getErrorCount() const
 {
+  uint8_t tx_err = 0;
+  uint8_t rx_err = 0;
 
-  return errorCount;
+  FLEXCAN_ECR_TX_ERR_COUNTER(tx_err);
+  FLEXCAN_ECR_RX_ERR_COUNTER(rx_err);
+
+  return tx_err + rx_err;
 }
 
 uint16_t CanDriver::getNumFilters() const

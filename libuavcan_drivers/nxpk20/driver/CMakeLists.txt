@@ -2,8 +2,6 @@ include_directories(
     ./include
     )
 
-add_definitions(-D__MK20DX256__)
-
 add_library(uavcan_nxpk20_driver STATIC
     ./src/can.cpp
     ./src/clock.cpp
