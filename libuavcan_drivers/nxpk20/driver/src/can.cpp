@@ -39,19 +39,30 @@ static const int rxb = 0;
 static int tx_buffer = TX_BUFFER_FIRST;
 static MonotonicTime last_deadline = MonotonicTime::fromMSec(0);
 
+void wrongDevice()
+{
+  while(true)
+  {
+    Serial.println("This processor is not supported!");
+  }
+}
+
 
 CanDriver::CanDriver()
  : errorCount(0)
 {
-  // setup pins
-  CORE_PIN3_CONFIG = PORT_PCR_MUX(2);
-  CORE_PIN4_CONFIG = PORT_PCR_MUX(2);
+  // select pin setup
+  #if defined(__MK20DX256__)
+    CORE_PIN3_CONFIG = PORT_PCR_MUX(2);
+    CORE_PIN4_CONFIG = PORT_PCR_MUX(2);
+  #elif
+    wrongDevice();
+  #endif
 
   // select clock source
   SIM_SCGC6 |= SIM_SCGC6_FLEXCAN0;
   FLEXCANb_CTRL1(FLEXCAN0_BASE) &= ~FLEXCAN_CTRL_CLK_SRC;
 
-  //Serial.println("CanDriver enable CAN");
   // enable CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
@@ -334,15 +345,21 @@ uint16_t CanDriver::getNumFilters() const
 
 ICanIface* CanDriver::getIface(uint8_t iface_index)
 {
-  //Serial.println("CanDriver getIface");
   return (ICanIface*) &self;
 }
 
 uint8_t CanDriver::getNumIfaces() const
 {
-  //Serial.println("CanDriver getNumIfaces");
-  // TODO: Provide implementation
-  return 1;
+  uint8_t devices;
+
+  #if defined(__MK20DX256__)
+    // the MK20DX256 has only CAN0
+    devices = 1;
+  #elif
+    wrongDevice();
+  #endif
+
+  return devices;
 }
 
 } // uavcan_nxpk20

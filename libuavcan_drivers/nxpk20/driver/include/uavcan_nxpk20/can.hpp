@@ -29,7 +29,9 @@ class CanDriver:
 {
 private:
   static CanDriver self;
-
+  /**
+   * Constructor of the can driver.
+   */
   CanDriver();
 
   uavcan::uint32_t errorCount;
@@ -83,6 +85,9 @@ public:
 
   uavcan::ICanIface* getIface(uavcan::uint8_t iface_index) override;
 
+  /**
+   * returns the number of CAN devices
+   */
   uavcan::uint8_t getNumIfaces() const override;
 
 };
