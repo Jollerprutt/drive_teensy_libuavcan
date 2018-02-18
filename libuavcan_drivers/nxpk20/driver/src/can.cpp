@@ -27,20 +27,22 @@ namespace uavcan_nxpk20
 #define FLEXCANb_MB_MASK(b, n)            (*(vuint32_t*)(b+0x880+(n*4)))
 #define FLEXCANb_IDFLT_TAB(b, n)          (*(vuint32_t*)(b+0xE0+(n*4)))
 
-// Buffers before first are occupied by FIFO
-#define TX_BUFFER_FIRST                   8
-#define TX_BUFFER_COUNT                   8
-#define RX_BUFFER_FIRST                   0
+// number of tx and rx buffer
+static uint8_t rx_buffer_count;
+static uint8_t tx_buffer_count;
+static uint8_t rx_buffer_first;
+static uint8_t tx_buffer_first;
+
+// current tx_buffer to use
+static uint8_t tx_buffer;
+static MonotonicTime last_deadline = MonotonicTime::fromMSec(0);
+
 
 // Init static variable
 CanDriver CanDriver::self;
 
 // rxb?
 static const int rxb = 0;
-
-// current tx_buffer to use
-static int tx_buffer = TX_BUFFER_FIRST;
-static MonotonicTime last_deadline = MonotonicTime::fromMSec(0);
 
 void wrongDevice()
 {
@@ -94,7 +96,7 @@ uint32_t CanDriver::detectBitRate()
   return 1000000;
 }
 
-int CanDriver::init(uint32_t bitrate)
+int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t tx_buf)
 {
   // set bitrate
   switch(bitrate)
@@ -138,6 +140,19 @@ int CanDriver::init(uint32_t bitrate)
   mask.ext =  0;
   mask.id = 0;
   mask.rtr = 0;
+  // set rx and tx buffer
+  #if defined(__MK20DX256__)
+    if(rx_buf + tx_buf > 15) // there are 16 mailboxes/buffer in hardware
+    {while(true){Serial.println("Too many rx and tx buffer.");}}
+  #elif
+    wrongDevice();
+  #endif
+
+  rx_buffer_count = rx_buf;
+  tx_buffer_count = tx_buf;
+  rx_buffer_first = 0;
+  tx_buffer_first = rx_buf;
+  tx_buffer = tx_buffer_first;
 
   //enable reception of all messages that fit the mask
   if (mask.ext) {
@@ -155,14 +170,14 @@ int CanDriver::init(uint32_t bitrate)
 
 
   // activate rx buffers
-  for(int i = 0; i < TX_BUFFER_FIRST; i++)
+  for(int i = rx_buffer_first; i < rx_buffer_first + rx_buffer_count; i++)
   {
     uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
   }
 
   // activate tx buffers
-  for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
+  for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count; i++)
   {
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
@@ -198,7 +213,7 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
                       }
 
     // we reached the limit of available buffers
-    if(TX_BUFFER_COUNT-1 == tx_buffer-TX_BUFFER_FIRST)
+    if(tx_buffer_count-1 == tx_buffer - tx_buffer_first)
     {
       // reset old deadline
       last_deadline = MonotonicTime::fromMSec(0);
@@ -208,7 +223,7 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
   }else{
 
     // check if all buffers are clean from previous messages
-    for(int i = TX_BUFFER_FIRST; i < TX_BUFFER_FIRST + TX_BUFFER_COUNT; i++)
+    for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count; i++)
     {
       while((FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_CODE_MASK)
                         != FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE))
@@ -216,7 +231,7 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
     }
 
     // use first buffer
-    tx_buffer = TX_BUFFER_FIRST;
+    tx_buffer = tx_buffer_first;
 
     // remember deadline (maybe we get more messages with this deadline)
     last_deadline = tx_deadline;
@@ -269,7 +284,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   out_ts_utc = UtcTime(); // TODO: change to clock::getUtc() when properly implemented
 
   // get identifier and dlc
-  out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, RX_BUFFER_FIRST));
+  out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, rx_buffer_first));
   out_frame.id = (FLEXCAN0_MBn_ID(rxb) & FLEXCAN_MB_ID_EXT_MASK);
 
   // is extended identifier?
@@ -282,7 +297,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   }
 
   // copy data to message
-  uint32_t data = FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, RX_BUFFER_FIRST);
+  uint32_t data = FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, rx_buffer_first);
   out_frame.data[3] = data;
   data >>= 8;
   out_frame.data[2] = data;
@@ -294,7 +309,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   // shortcut if last bytes are empty anyways
   if(out_frame.dlc  > 4)
   {
-    data = FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, RX_BUFFER_FIRST);
+    data = FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, rx_buffer_first);
     out_frame.data[7] = data;
     data >>= 8;
     out_frame.data[6] = data;

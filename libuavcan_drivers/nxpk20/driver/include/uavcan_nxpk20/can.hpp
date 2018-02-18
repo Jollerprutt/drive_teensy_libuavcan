@@ -54,7 +54,7 @@ public:
    * @return On success: zero
    *         On failure (baudrate cannot be used): negative number
    */
-  int init(uavcan::uint32_t bitrate);
+  int init(const uint32_t bitrate, const uint8_t rx_buf=8, const uint8_t tx_buf=8);
 
   /**
    * Send a frame before tx_deadline
