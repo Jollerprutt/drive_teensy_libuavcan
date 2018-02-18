@@ -1,6 +1,7 @@
 /*
- * Teensy 3.2 header for UAVCAN
+ * Teensy 3.2 driver for UAVCAN
  * @author fwindolf - Florian Windolf  florianwindolf@gmail.com
+ * @author TUM Phoenix Robotics
  */
 
 #ifndef UAVCAN_NXPK20_CAN_HPP_INCLUDED
