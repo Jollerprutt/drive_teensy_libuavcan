@@ -142,7 +142,7 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   mask.rtr = 0;
   // set rx and tx buffer
   #if defined(__MK20DX256__)
-    if(rx_buf + tx_buf > 15) // there are 16 mailboxes/buffer in hardware
+    if(rx_buf + tx_buf > 16) // there are 16 mailboxes/buffer in hardware
     {while(true){Serial.println("Too many rx and tx buffer.");}}
   #elif
     wrongDevice();
@@ -170,14 +170,15 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
 
 
   // activate rx buffers
-  for(int i = rx_buffer_first; i < rx_buffer_first + rx_buffer_count; i++)
+  for(int i = rx_buffer_first; i < rx_buffer_first + rx_buffer_count-1; i++)
   {
-    uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
-    FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
+    // TODO: MAKE THIS WORK
+    //uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
+    //FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
   }
 
   // activate tx buffers
-  for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count; i++)
+  for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count-1; i++)
   {
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
