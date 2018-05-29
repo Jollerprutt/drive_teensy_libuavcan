@@ -85,6 +85,9 @@ CanDriver::CanDriver()
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
 
+  // enable RX FIFO
+  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FEN;
+
 }
 
 
@@ -166,13 +169,6 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
-
-  // activate rx buffers
-  for(int i = rx_buffer_first; i < rx_buffer_first + rx_buffer_count-1; i++)
-  {
-    uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
-    FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
-  }
 
   // activate tx buffers
   for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count-1; i++)
