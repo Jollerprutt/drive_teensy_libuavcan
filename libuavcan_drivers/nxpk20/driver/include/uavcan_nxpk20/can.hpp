@@ -10,6 +10,8 @@
 
 #include <uavcan/driver/can.hpp>
 
+#define IRQ_PRIORITY 255 // 0 = highest, 255 = lowest
+
 namespace uavcan_nxpk20
 {
 

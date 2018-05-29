@@ -83,10 +83,9 @@ CanDriver::CanDriver()
   while(!(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK)) {;}
 
   // disable self-reception
-  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
+  //FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
 
 }
-
 
 // TODO: provide implementation
 uint32_t CanDriver::detectBitRate()
@@ -130,14 +129,7 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
                                     | FLEXCAN_CTRL_PRESDIV(7));
   }
 
-  // set default filter mask
-  FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
 
-  // default mask is allow everything
-  CAN_filter_t mask;
-  mask.ext =  0;
-  mask.id = 0;
-  mask.rtr = 0;
   // set rx and tx buffer
   #if defined(__MK20DX256__)
     if(rx_buf + tx_buf > 16) // there are 16 mailboxes/buffer in hardware
@@ -149,15 +141,14 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   rx_buffer_count = rx_buf;
   tx_buffer_count = tx_buf;
   rx_buffer_first = 0;
-  tx_buffer_first = rx_buf;
+  tx_buffer_first = rx_buffer_count;
   tx_buffer = tx_buffer_first;
 
-  //enable reception of all messages that fit the mask
-  if (mask.ext) {
-    FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | ((mask.id & FLEXCAN_MB_ID_EXT_MASK) << 1);
-  } else {
-    FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | (FLEXCAN_MB_ID_IDSTD(mask.id) << 1);
-  }
+  // enable RX FIFO
+  //FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FEN;
+
+  // enable loop back mode
+  FLEXCANb_CTRL1(FLEXCAN0_BASE) |= FLEXCAN_CTRL_LPB;
 
   // start the CAN
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
@@ -166,13 +157,14 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
-
+ /*
   // activate rx buffers
   for(int i = rx_buffer_first; i < rx_buffer_first + rx_buffer_count-1; i++)
   {
     uint32_t oldIde = FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) & FLEXCAN_MB_CS_IDE;
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_RX_EMPTY) | oldIde;
   }
+  */
 
   // activate tx buffers
   for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count-1; i++)
@@ -180,8 +172,75 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
 
+
+  // enable per-mailbox filtering
+  //FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_IRMQ;
+
+/*
+  for (uint8_t i = 0; i < rx_buffer_count; i++) {
+    //FLEXCANb_MB_MASK(FLEXCAN0_BASE, i) = 0;
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, i) = (0 & FLEXCAN_MB_ID_EXT_MASK);
+    FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) |= FLEXCAN_MB_CS_IDE;
+  }
+
+  Serial.println("test3");
+
+
+    // set default filter mask
+    FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
+
+    // default mask is allow everything
+    CAN_filter_t mask;
+    mask.ext =  0;
+    mask.id = 0;
+    mask.rtr = 0;
+
+
+
+    //enable reception of all messages that fit the mask
+    if (mask.ext) {
+      FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | ((mask.id & FLEXCAN_MB_ID_EXT_MASK) << 1);
+    } else {
+      FLEXCANb_RXFGMASK(FLEXCAN0_BASE) = ((mask.rtr?1:0) << 31) | ((mask.ext?1:0) << 30) | (FLEXCAN_MB_ID_IDSTD(mask.id) << 1);
+    }
+
+
+*/
+
   //lowest buffers transmit first
-  FLEXCANb_CTRL1(FLEXCAN0_BASE) |= FLEXCAN_CTRL_LBUF;
+  //FLEXCANb_CTRL1(FLEXCAN0_BASE) |= FLEXCAN_CTRL_LBUF;
+
+  /*
+  #if defined(__MK20DX256__)
+  uint32_t IrqMessage = IRQ_CAN_MESSAGE;
+  #elif
+    wrongDevice();
+  #endif
+
+  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_IRMQ;
+
+  NVIC_SET_PRIORITY(IrqMessage, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IrqMessage);
+
+  NVIC_SET_PRIORITY(IRQ_CAN_BUS_OFF, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IRQ_CAN_BUS_OFF);
+
+  NVIC_SET_PRIORITY(IRQ_CAN_ERROR, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IRQ_CAN_ERROR);
+
+  NVIC_SET_PRIORITY(IRQ_CAN_TX_WARN, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IRQ_CAN_TX_WARN);
+
+  NVIC_SET_PRIORITY(IRQ_CAN_RX_WARN, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IRQ_CAN_RX_WARN);
+
+  NVIC_SET_PRIORITY(IRQ_CAN_WAKEUP, IRQ_PRIORITY);
+  NVIC_ENABLE_IRQ(IRQ_CAN_WAKEUP);
+
+  FLEXCANb_IMASK1(FLEXCAN0_BASE) = FLEXCAN_IMASK1_BUF0M;
+  */
+
+
 
   return 0;
 }
@@ -378,6 +437,32 @@ uint8_t CanDriver::getNumIfaces() const
   #endif
 
   return devices;
+}
+
+
+/*
+ * INTERRUPT SERVICE ROUTINES
+ * as defined in teensy core code
+ */
+void can0_error_isr()
+{
+  Serial.println("CAN ERROR ISR");
+}
+
+void can0_tx_warn_isr()
+{
+  Serial.println("TX WARN ISR");
+}
+
+void can0_rx_warn_isr()
+{
+  Serial.println("RX WARN ISR");
+}
+
+void can0_message_isr()
+{
+  Serial.println("Message ISR");
+  digitalWrite(13, true);
 }
 
 } // uavcan_nxpk20
