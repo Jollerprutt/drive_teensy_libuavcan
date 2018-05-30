@@ -85,9 +85,6 @@ CanDriver::CanDriver()
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
 
-  // enable RX FIFO
-  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FEN;
-
 }
 
 
@@ -99,6 +96,7 @@ uint32_t CanDriver::detectBitRate()
 
 int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t tx_buf)
 {
+
   // set bitrate
   switch(bitrate)
   {
@@ -171,7 +169,7 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
 
 
   // activate tx buffers
-  for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count-1; i++)
+  for(int i = tx_buffer_first; i < tx_buffer_first + tx_buffer_count; i++)
   {
     FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) = FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE);
   }
@@ -203,6 +201,7 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
                       != FLEXCAN_MB_CS_CODE(FLEXCAN_MB_CODE_TX_INACTIVE))
                       {
                           // something went wrong
+                          Serial.println("something went wrong");
                           return -1;
                       }
 
@@ -264,21 +263,35 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
 
 
 int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, UtcTime& out_ts_utc,
-                        CanIOFlags& out_flags)
+                           CanIOFlags& out_flags)
 {
-  // Check if a new frame is available
-  if((FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M) == 0)
+
+  uint16_t rx_buffer = 999;
+
+  for(int i=rx_buffer_first; i<rx_buffer_first+rx_buffer_count; i++)
   {
-    //Serial.println("CanDriver no new frame available");
+    if(FLEXCANb_IFLAG1(FLEXCAN0_BASE) & (uint32_t) 1 << i)
+    {
+      rx_buffer = i;
+      break;
+    }
+  }
+
+  if(999 == rx_buffer)
+  {
+    Serial.println("Nothing found. Something went wrong!");
     return 0;
   }
+
+  // Check if a new frame is available
+
 
   // save timestamp
   out_ts_monotonic = clock::getMonotonic();
   out_ts_utc = UtcTime(); // TODO: change to clock::getUtc() when properly implemented
 
   // get identifier and dlc
-  out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, rx_buffer_first));
+  out_frame.dlc = FLEXCAN_get_length(FLEXCANb_MBn_CS(FLEXCAN0_BASE, rx_buffer));
   out_frame.id = (FLEXCAN0_MBn_ID(rxb) & FLEXCAN_MB_ID_EXT_MASK);
 
   // is extended identifier?
@@ -291,7 +304,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   }
 
   // copy data to message
-  uint32_t data = FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, rx_buffer_first);
+  uint32_t data = FLEXCANb_MBn_WORD0(FLEXCAN0_BASE, rx_buffer);
   out_frame.data[3] = data;
   data >>= 8;
   out_frame.data[2] = data;
@@ -303,7 +316,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   // shortcut if last bytes are empty anyways
   if(out_frame.dlc  > 4)
   {
-    data = FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, rx_buffer_first);
+    data = FLEXCANb_MBn_WORD1(FLEXCAN0_BASE, rx_buffer);
     out_frame.data[7] = data;
     data >>= 8;
     out_frame.data[6] = data;
@@ -314,7 +327,7 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
   }
 
   // set read flags
-  FLEXCANb_IFLAG1(FLEXCAN0_BASE) = FLEXCAN_IMASK1_BUF5M;
+  FLEXCANb_IFLAG1(FLEXCAN0_BASE) |= (uint32_t) 1 << rx_buffer;
   return 1;
 }
 
@@ -322,19 +335,31 @@ int16_t CanDriver::select(CanSelectMasks& inout_masks,
                        const CanFrame* (&)[MaxCanIfaces],
                        MonotonicTime blocking_deadline)
 {
-  // TODO: Provide implementation
-
-  // does this work?
-  inout_masks.read = (FLEXCANb_IFLAG1(FLEXCAN0_BASE) & FLEXCAN_IMASK1_BUF5M)? 1:0;
+  uint32_t mask = (uint32_t) 1  <<  rx_buffer_count;
+  mask = mask-1;
+  inout_masks.read = (FLEXCANb_IFLAG1(FLEXCAN0_BASE) & mask)? 1:0;
 
   return 0;
 }
 
 int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
-                         uint16_t num_configs)
+                                   uint16_t num_configs)
 {
- // more infos: http://uavcan.org/Implementations/Libuavcan/Tutorials/13._CAN_acceptance_filters/
- // TODO: Provide implementation
+  if(num_configs > rx_buffer_count)
+  {
+    Serial.println("Something went wrong!");
+    return 1;
+  }
+
+  uint16_t config = 0;
+  for(int i=rx_buffer_first; i<rx_buffer_first + num_configs; i++)
+  {
+    FLEXCANb_MBn_ID(FLEXCAN0_BASE, i) = filter_configs[config].id;
+    FLEXCANb_MB_MASK(FLEXCAN0_BASE, i) = filter_configs[config].mask;
+    FLEXCANb_MBn_CS(FLEXCAN0_BASE, i) |= FLEXCAN_MB_CS_IDE;
+
+    config++;
+  }
 
  return 0;
 }
@@ -352,8 +377,7 @@ uint64_t CanDriver::getErrorCount() const
 
 uint16_t CanDriver::getNumFilters() const
 {
-  // TODO: Provide implementation
-  return 0;
+  return rx_buffer_count;
 }
 
 
