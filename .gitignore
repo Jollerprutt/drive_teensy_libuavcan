@@ -50,6 +50,9 @@ libuavcan/include/uavcan/protocol/enumeration/
 libuavcan/include/uavcan/protocol/file/
 libuavcan/include/uavcan/protocol/param/
 
+# phoenix headers
+libuavcan/include/drive_teensy_uavcan_msgs/
+
 # Copied sources
 src/*
 !src/UAVCAN.hpp
