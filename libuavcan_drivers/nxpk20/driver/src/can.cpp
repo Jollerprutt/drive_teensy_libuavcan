@@ -8,24 +8,12 @@
 #include <uavcan_nxpk20/can.hpp>
 #include <uavcan_nxpk20/clock.hpp>
 #include "kinetis_flexcan.h"
+#include "helper_flexcan.h"
 
 using namespace uavcan;
 
 namespace uavcan_nxpk20
 {
-
-#define FLEXCANb_MCR(b)                   (*(vuint32_t*)(b))
-#define FLEXCANb_CTRL1(b)                 (*(vuint32_t*)(b+4))
-#define FLEXCANb_RXMGMASK(b)              (*(vuint32_t*)(b+0x10))
-#define FLEXCANb_IMASK1(b)                (*(vuint32_t*)(b+0x28))
-#define FLEXCANb_IFLAG1(b)                (*(vuint32_t*)(b+0x30))
-#define FLEXCANb_RXFGMASK(b)              (*(vuint32_t*)(b+0x48))
-#define FLEXCANb_MBn_CS(b, n)             (*(vuint32_t*)(b+0x80+n*0x10))
-#define FLEXCANb_MBn_ID(b, n)             (*(vuint32_t*)(b+0x84+n*0x10))
-#define FLEXCANb_MBn_WORD0(b, n)          (*(vuint32_t*)(b+0x88+n*0x10))
-#define FLEXCANb_MBn_WORD1(b, n)          (*(vuint32_t*)(b+0x8C+n*0x10))
-#define FLEXCANb_MB_MASK(b, n)            (*(vuint32_t*)(b+0x880+(n*4)))
-#define FLEXCANb_IDFLT_TAB(b, n)          (*(vuint32_t*)(b+0xE0+(n*4)))
 
 // number of tx and rx buffer
 static uint8_t rx_buffer_count;
@@ -67,7 +55,7 @@ CanDriver::CanDriver()
   FLEXCANb_CTRL1(FLEXCAN0_BASE) &= ~FLEXCAN_CTRL_CLK_SRC;
 
   // enable CAN
-  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
+  freeze();
   FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
 
   // wait until
@@ -76,11 +64,8 @@ CanDriver::CanDriver()
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_MDIS) {;}
 
   // do soft reset
-  FLEXCANb_MCR(FLEXCAN0_BASE) ^= FLEXCAN_MCR_SOFT_RST;
-
-  // wait for soft reset came through and freeze acknwoledge
-  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_SOFT_RST) {;}
-  while(!(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK)) {;}
+  softReset();
+  waitFrozen();
 
   // disable self-reception
   FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
@@ -161,10 +146,9 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   }
 
   // start the CAN
-  FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
+  exitHalt();
 
-  // wait until freeze acknowledged and not ready bit set
-  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK) {;}
+  // wait until not ready bit set
   while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
 
 
@@ -283,8 +267,6 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
     return 0;
   }
 
-  // Check if a new frame is available
-
 
   // save timestamp
   out_ts_monotonic = clock::getMonotonic();
@@ -351,6 +333,13 @@ int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
     return 1;
   }
 
+  // bool wasFrozen=isFrozen();
+  //
+  // if (!wasFrozen) {
+  //     freeze();
+  //     halt();
+  // }
+
   uint16_t config = 0;
   for(int i=rx_buffer_first; i<rx_buffer_first + num_configs; i++)
   {
@@ -360,6 +349,8 @@ int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
 
     config++;
   }
+
+  // if (!wasFrozen) exitHalt();
 
  return 0;
 }
