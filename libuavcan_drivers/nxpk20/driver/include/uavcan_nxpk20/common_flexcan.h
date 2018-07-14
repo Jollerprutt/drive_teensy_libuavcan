@@ -1,17 +1,14 @@
 /*
- * File:    helper_flexcan.h
- * Purpose: helper functions and defines for flexcan
+ * File:    common_flexcan.h
+ * Purpose: common functions and defines for flexcan
  * Source: https://github.com/collin80/FlexCAN_Library/blob/master/FlexCAN.cpp
  */
 
-#ifndef	HELPER_FLEXCAN_H
-#define	HELPER_FLEXCAN_H
+#ifndef	COMMON_FLEXCAN_H
+#define	COMMON_FLEXCAN_H
 
-#include <Arduino.h>
 #include <stdint.h>
 #include "kinetis_flexcan.h"
-
-#define flexcanBase FLEXCAN0_BASE
 
 #define FLEXCANb_MCR(b)                   (*(vuint32_t*)(b))
 #define FLEXCANb_CTRL1(b)                 (*(vuint32_t*)(b+4))
@@ -54,6 +51,21 @@ uint8_t bitTimingTable[21][3] = {
     {7,7,7}, //25
 };
 
+#if defined(__MK20DX256__)
+  #define NUM_MAILBOXES 16 // architecture specific but all Teensy 3.x boards have 16 mailboxes
+#endif
+
+typedef struct CAN_filter_t {
+    uint32_t id;
+    struct {
+        uint8_t extended:1;  // identifier is extended (29-bit)
+        uint8_t remote:1;    // remote transmission request packet type
+        uint8_t reserved:6;
+    } flags;
+} CAN_filter_t;
+
+// Mail box filters
+static struct CAN_filter_t MBFilters[NUM_MAILBOXES];
 
 /*
  * \brief Loops forever if wrong device.
@@ -152,7 +164,7 @@ void setBaudRate(uint32_t baud) {
     uint8_t pSeg1   = bitTimingTable[result][1];
     uint8_t pSeg2   = bitTimingTable[result][2];
 
-    FLEXCANb_CTRL1 (flexcanBase) = (FLEXCAN_CTRL_PROPSEG(propSeg) | FLEXCAN_CTRL_RJW(1) | FLEXCAN_CTRL_ERR_MSK |
+    FLEXCANb_CTRL1 (FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(propSeg) | FLEXCAN_CTRL_RJW(1) | FLEXCAN_CTRL_ERR_MSK |
                                     FLEXCAN_CTRL_PSEG1(pSeg1) | FLEXCAN_CTRL_PSEG2(pSeg2) | FLEXCAN_CTRL_PRESDIV(divisor));
 }
 
@@ -247,7 +259,7 @@ void waitNotFrozen() {
  *
  */
 void freeze() {
-  FLEXCANb_MCR(flexcanBase) |= FLEXCAN_MCR_FRZ;
+  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_FRZ;
 }
 
 
@@ -258,7 +270,7 @@ void freeze() {
  *
  */
 void halt() {
-    FLEXCANb_MCR(flexcanBase) |= (FLEXCAN_MCR_HALT);
+    FLEXCANb_MCR(FLEXCAN0_BASE) |= (FLEXCAN_MCR_HALT);
     waitFrozen();
 }
 
@@ -270,7 +282,7 @@ void halt() {
  */
 void exitHalt() {
     // exit freeze mode and wait until it is unfrozen.
-    FLEXCANb_MCR(flexcanBase) &= ~(FLEXCAN_MCR_HALT);
+    FLEXCANb_MCR(FLEXCAN0_BASE) &= ~(FLEXCAN_MCR_HALT);
     waitNotFrozen();
 }
 
@@ -280,8 +292,8 @@ void exitHalt() {
  * \retval None.
  */
 void softReset() {
-  FLEXCANb_MCR (flexcanBase) ^=  FLEXCAN_MCR_SOFT_RST;
-  while (FLEXCANb_MCR (flexcanBase) & FLEXCAN_MCR_SOFT_RST);
+  FLEXCANb_MCR (FLEXCAN0_BASE) ^=  FLEXCAN_MCR_SOFT_RST;
+  while (FLEXCANb_MCR (FLEXCAN0_BASE) & FLEXCAN_MCR_SOFT_RST);
 }
 
 /*
@@ -292,9 +304,9 @@ void softReset() {
 void end(){
     // enter freeze mode
     halt();
-    FLEXCANb_MCR(flexcanBase) |= (FLEXCAN_MCR_HALT);
+    FLEXCANb_MCR(FLEXCAN0_BASE) |= (FLEXCAN_MCR_HALT);
 
-    while(!(FLEXCANb_MCR(flexcanBase) & FLEXCAN_MCR_FRZ_ACK));
+    while(!(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_FRZ_ACK));
 }
 
 
@@ -304,9 +316,73 @@ void end(){
  * \retval None.
  */
 void waitReady() {
-  while(FLEXCANb_MCR(flexcanBase) & FLEXCAN_MCR_NOT_RDY);
+  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY);
 }
 
+
+
+/*
+ * \brief Set the mailbox mask for filtering packets
+ * \param mask - mask to apply.
+ * \param mbox - mailbox number
+ * \retval None.
+ */
+
+void setMask(uint32_t mask, uint8_t mbox)
+{
+
+  /* Per mailbox masks can only be set in freeze mode so have to enter that mode if not already there. */
+  bool wasFrozen=isFrozen();
+  
+  if (!wasFrozen) {
+      freeze();
+      halt();
+  }
+
+  FLEXCANb_MB_MASK(FLEXCAN0_BASE, mbox) = mask;
+
+  if(!wasFrozen) exitHalt();
+}
+
+
+/*
+ * \brief Sets a per-mailbox filter. Sets both the storage and the actual mailbox.
+ * \param filter - a filled out filter structure
+ * \param mbox - the mailbox to update
+ * \retval Nothing
+ */
+
+void setFilter(const CAN_filter_t &filter, uint8_t mbox)
+{
+      MBFilters[mbox] = filter;
+
+      if (filter.flags.extended) {
+          FLEXCANb_MBn_ID(flexcanBase, mbox) = (filter.id & FLEXCAN_MB_ID_EXT_MASK);
+          FLEXCANb_MBn_CS(flexcanBase, mbox) |= FLEXCAN_MB_CS_IDE;
+      } else {
+          FLEXCANb_MBn_ID(flexcanBase, mbox) = FLEXCAN_MB_ID_IDSTD(filter.id);
+          FLEXCANb_MBn_CS(flexcanBase, mbox) &= ~FLEXCAN_MB_CS_IDE;
+      }
+}
+
+
+
+/*
+ * \brief Gets a per-mailbox filter.
+ * \param filter - returned filter structure
+ * \param mbox - mailbox selected
+ * \retval true if mailbox s valid, false otherwise
+ */
+
+bool FlexCAN::getFilter (CAN_filter_t &filter, uint8_t mbox)
+{
+  filter.id = MBFilters[mbox].id;
+  filter.flags.extended = MBFilters[mbox].flags.extended;
+  filter.flags.remote = MBFilters[mbox].flags.remote;
+  filter.flags.reserved = MBFilters[mbox].flags.reserved;
+
+  return (true);
+}
 
 
 

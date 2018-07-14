@@ -8,7 +8,7 @@
 #include <uavcan_nxpk20/can.hpp>
 #include <uavcan_nxpk20/clock.hpp>
 #include <uavcan_nxpk20/kinetis_flexcan.h>
-#include <uavcan_nxpk20/helper_flexcan.h>
+#include <uavcan_nxpk20/common_flexcan.h>
 
 using namespace uavcan;
 
@@ -72,6 +72,8 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   // set baud rate
   setBaudRate(bitrate);
 
+  // enable per mailbox filtering
+  enablePerMailboxFilter();
 
   // set default filter mask
   FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
