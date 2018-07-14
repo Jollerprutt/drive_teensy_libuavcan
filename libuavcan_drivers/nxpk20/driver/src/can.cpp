@@ -7,8 +7,8 @@
 #include <Arduino.h>
 #include <uavcan_nxpk20/can.hpp>
 #include <uavcan_nxpk20/clock.hpp>
-#include "kinetis_flexcan.h"
-#include "helper_flexcan.h"
+#include <uavcan_nxpk20/kinetis_flexcan.h>
+#include <uavcan_nxpk20/helper_flexcan.h>
 
 using namespace uavcan;
 
@@ -32,89 +32,46 @@ CanDriver CanDriver::self;
 // rxb?
 static const int rxb = 0;
 
-void wrongDevice()
-{
-  while(true){ Serial.println("This processor is not supported!"); }
-}
-
-
 CanDriver::CanDriver()
 {
-  // select pin setup
-  #if defined(__MK20DX256__)
-    CORE_PIN3_CONFIG = PORT_PCR_MUX(2);
-    CORE_PIN4_CONFIG = PORT_PCR_MUX(2);
-  #elif
-    wrongDevice();
-  #endif
+  // set correct pins
+  setPins();
 
-  // select clock source 16MHz xtal
-  OSC0_CR |= OSC_ERCLKEN;
-  // select clock source
-  SIM_SCGC6 |= SIM_SCGC6_FLEXCAN0;
-  FLEXCANb_CTRL1(FLEXCAN0_BASE) &= ~FLEXCAN_CTRL_CLK_SRC;
+  // set clock source
+  setClockSource();
 
   // enable CAN
   freeze();
-  FLEXCANb_MCR(FLEXCAN0_BASE) &= ~FLEXCAN_MCR_MDIS;
+  enableCanModule();
 
-  // wait until
-  while (FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_LPM_ACK){;}
-  // wait until enabled bit is set
-  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_MDIS) {;}
+  // wait until not in low power mode anymore
+  waitNotLowPowerMode();
 
   // do soft reset
   softReset();
   waitFrozen();
 
-  // disable self-reception
-  FLEXCANb_MCR(FLEXCAN0_BASE) |= FLEXCAN_MCR_SRX_DIS;
+  // disable self reception
+  disableSelfReception();
 
 }
 
 
-// TODO: provide implementation
+// return the detected bit rate
 uint32_t CanDriver::detectBitRate()
 {
-  return 1000000;
+
+  // TODO provide implementation
+  return 0;
 }
 
+// initializes the CAN Driver
 int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t tx_buf)
 {
 
-  // set bitrate
-  switch(bitrate)
-  {
-    case 50000:
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
-                                      | FLEXCAN_CTRL_PSEG1(7) | FLEXCAN_CTRL_PSEG2(3)
-                                      | FLEXCAN_CTRL_PRESDIV(19));
-      break;
-    case 100000:
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
-                                      | FLEXCAN_CTRL_PSEG1(7) | FLEXCAN_CTRL_PSEG2(3)
-                                      | FLEXCAN_CTRL_PRESDIV(9));
-      break;
-    case 250000:
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
-                                      | FLEXCAN_CTRL_PSEG1(7) | FLEXCAN_CTRL_PSEG2(3)
-                                      | FLEXCAN_CTRL_PRESDIV(3));
-      break;
-    case 500000:
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
-                                      | FLEXCAN_CTRL_PSEG1(7) | FLEXCAN_CTRL_PSEG2(3)
-                                      | FLEXCAN_CTRL_PRESDIV(1));
-      break;
-    case 1000000:
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(0)
-                                      | FLEXCAN_CTRL_PSEG1(1) | FLEXCAN_CTRL_PSEG2(1)
-                                      | FLEXCAN_CTRL_PRESDIV(1));
-      break;
-    default: // 125000
-      FLEXCANb_CTRL1(FLEXCAN0_BASE) = (FLEXCAN_CTRL_PROPSEG(2) | FLEXCAN_CTRL_RJW(1)
-                                    | FLEXCAN_CTRL_PSEG1(7) | FLEXCAN_CTRL_PSEG2(3)
-                                    | FLEXCAN_CTRL_PRESDIV(7));
-  }
+  // set baud rate
+  setBaudRate(bitrate);
+
 
   // set default filter mask
   FLEXCANb_RXMGMASK(FLEXCAN0_BASE) = 0;
@@ -127,7 +84,9 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   // set rx and tx buffer
   #if defined(__MK20DX256__)
     if(rx_buf + tx_buf > 16) // there are 16 mailboxes/buffer in hardware
-    {while(true){Serial.println("Too many rx and tx buffer.");}}
+    {
+      wrongDevice();
+    }
   #elif
     wrongDevice();
   #endif
@@ -149,7 +108,7 @@ int CanDriver::init(const uint32_t bitrate, const uint8_t rx_buf, const uint8_t 
   exitHalt();
 
   // wait until not ready bit set
-  while(FLEXCANb_MCR(FLEXCAN0_BASE) & FLEXCAN_MCR_NOT_RDY) {;}
+  waitReady();
 
 
   // activate tx buffers
