@@ -10,42 +10,49 @@
 #include <uavcan/driver/can.hpp>
 #include "FlexCAN.h"
 
+using namespace uavcan;
+
 namespace uavcan_nxpk20
 {
 
-/*
- * Implement the CAN Interfaces in non-redundant way
- * Singleton class
- */
-class CanDriver:
-  public uavcan::ICanDriver,
-  public uavcan::ICanIface,
-  uavcan::Noncopyable
+struct IfaceParams{
+  uint32_t bitrate;
+  uint8_t tx_buff_size;
+  uint8_t rx_buff_size;
+  bool use_alt_tx_pin;
+  bool use_alt_rx_pin;
+};
+
+class CanIface:
+  public ICanIface,
+  Noncopyable
 {
 private:
-  static CanDriver self;
+  static CanIface self;
 
-  CanDriver();
+  // pointer to the flexcan object
+  FlexCAN* flexcan;
   
 public:
   /**
+   * Constructor
+   */
+  CanIface(FlexCAN* f)
+   : flexcan(f) 
+  {};
+
+  /**
    * Returns the only reference.
+   * @return Reference to this object
    */
-  static CanDriver& instance() { return self; }
+  static CanIface& instance() { return self; }
+
 
   /**
-   * Detect bus bit rate, blocks for some time
-   * @return On success: detected bit rate, in bits per second.
-   *         On failure: zero.
+   * Initialize the interface
+   * @return None
    */
-  static uavcan::uint32_t detectBitRate();
-
-  /**
-   * Initialize the driver
-   * @return On success: zero
-   *         On failure (baudrate cannot be used): negative number
-   */
-  int init(uavcan::uint32_t bitrate);
+  void init(const IfaceParams& p);
 
   /**
    * Non-blocking transmission.
@@ -58,10 +65,7 @@ public:
    *
    * @return 1 = one frame transmitted, 0 = TX buffer full, negative for error.
    */
-  uavcan::int16_t send(const uavcan::CanFrame& frame,
-                       uavcan::MonotonicTime tx_deadline,
-                       uavcan::CanIOFlags flags) override;
-
+  int16_t send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags) override;
 
   /**
    * Non-blocking reception.
@@ -80,13 +84,100 @@ public:
    * @param [out] out_ts_utc       UTC timestamp, optional, zero if unknown.
    * @return 1 = one frame received, 0 = RX buffer empty, negative for error.
    */
-  uavcan::int16_t receive(uavcan::CanFrame& out_frame,
-                          uavcan::MonotonicTime& out_ts_monotonic,
-                          uavcan::UtcTime& out_ts_utc,
-                          uavcan::CanIOFlags& out_flags) override;
+  int16_t receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, UtcTime& out_ts_utc,
+                  CanIOFlags& out_flags) override;
+
+  /**
+   * Configure the hardware CAN filters. @ref CanFilterConfig.
+   *
+   * @return 0 = success, negative for error.
+   */
+  int16_t configureFilters(const CanFilterConfig* filter_configs, uint16_t num_configs) override;
+
+  /**
+   * Number of available hardware filters.
+   */
+  uint16_t getNumFilters() const override;
+
+  /**
+   * Continuously incrementing counter of hardware errors.
+   * Arbitration lost should not be treated as a hardware error.
+   */
+  uint64_t getErrorCount() const override;
+
+  /**
+   * Returns if RX has some messages ready to read
+   */
+  bool availableToReadMsg() const;
+
+  /**
+   * Returns available messages (TX)
+   */
+  bool availableToSendMsg() const;
 
 
-  
+
+};
+
+/*
+ * Implement the CAN Interfaces in non-redundant way
+ * Singleton class
+ */
+class CanDriver:
+  public uavcan::ICanDriver,
+  uavcan::Noncopyable
+{
+private:
+  static CanDriver self;
+
+  #ifndef INCLUDE_FLEXCAN_CAN1
+    CanIface can0;
+  #else
+    CanIface can0;
+    CanIface can1;
+  #endif
+
+  public:
+
+  /**
+   * Constructor
+   */
+  #ifndef INCLUDE_FLEXCAN_CAN1
+    CanDriver()
+    : can0(&Can0)
+    {};
+  #else
+    CanDriver()
+    : can0(&Can0), can1(&Can1)
+    {};
+  #endif  
+
+  /**
+   * Returns the only reference.
+   * @return Reference to this object
+   */
+  static CanDriver& instance() { return self; }
+
+  /**
+   * Initialize the driver
+   * @param [in] array of bitrates for the interfaces
+   * @return None
+   */
+  void init(const IfaceParams* params);
+
+  /**
+   * Returns the specified interface
+   * @return Reference to Interface
+   */
+  ICanIface* getIface(uint8_t iface_index) override;
+
+  /**
+   * Total number of available CAN interfaces.
+   * This value shall not change after initialization.
+   * @return Number of available interfaces
+   */
+  uint8_t getNumIfaces() const override;
+
   /**
    * Block until the deadline, or one of the specified interfaces becomes available for read or write.
    *
@@ -107,22 +198,9 @@ public:
    * @param [in]     blocking_deadline  Zero means non-blocking operation.
    * @return Positive number of ready interfaces or negative error code.
    */
-  uavcan::int16_t select(uavcan::CanSelectMasks& inout_masks,
-                         const uavcan::CanFrame* (&)[uavcan::MaxCanIfaces],
-                         uavcan::MonotonicTime blocking_deadline) override;
-
-
-
-  uavcan::int16_t configureFilters(const uavcan::CanFilterConfig* filter_configs,
-                                   uavcan::uint16_t num_configs) override;
-
-  uavcan::uint64_t getErrorCount() const override;
-
-  uavcan::uint16_t getNumFilters() const override;
-
-  uavcan::ICanIface* getIface(uavcan::uint8_t iface_index) override;
-
-  uavcan::uint8_t getNumIfaces() const override;
+  int16_t select(CanSelectMasks& inout_masks,
+                 const CanFrame* (& pending_tx)[MaxCanIfaces],
+                 MonotonicTime blocking_deadline) override;
 
 };
 

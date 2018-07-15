@@ -7,7 +7,6 @@
 #include <uavcan_nxpk20/can.hpp>
 #include <uavcan_nxpk20/clock.hpp>
 
-using namespace uavcan;
 
 namespace uavcan_nxpk20
 {
@@ -15,35 +14,36 @@ namespace uavcan_nxpk20
 // Init static variable
 CanDriver CanDriver::self;
 
-CanDriver::CanDriver()
-{
-  
-}
-
-// detects the current bit rate
-uint32_t CanDriver::detectBitRate()
-{
-  // TODO: implementation missing
-  return 0;
-}
-
 
 // initialize can driver
-int CanDriver::init(uint32_t bitrate)
+void CanIface::init(const IfaceParams& p)
 {
-  Can0.begin(bitrate);
-  return 0;
+  // // set mailbox and buffer sizes
+  flexcan->setTxBufferSize(p.tx_buff_size);
+  flexcan->setRxBufferSize(p.rx_buff_size);
+  
+  // // allow everything until (correct filters may be set later)
+  CAN_filter_t empty_mask;
+  empty_mask.flags.remote = 0;
+  empty_mask.flags.extended = 0;
+  empty_mask.id = 0;
+
+  // // start flexcan interface
+  flexcan->begin(p.bitrate, empty_mask, p.use_alt_tx_pin, p.use_alt_rx_pin);
 }
 
 // sends a CAN frame
-int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
+int16_t CanIface::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOFlags flags)
 {
-
   // Frame was not transmitted until tx deadline
   if(!tx_deadline.isZero() && clock::getMonotonic() >= tx_deadline)
   {
     return -1;
   }
+
+  // IMPORTANT: there is no further deadline checking from here on!
+  // This may cause the message to be stored in flexcan ring buffer and
+  // send after deadline.
 
   CAN_message_t msg;
   msg.id = frame.id;
@@ -54,17 +54,25 @@ int16_t CanDriver::send(const CanFrame& frame, MonotonicTime tx_deadline, CanIOF
   {
     msg.buf[i] = frame.data[i];
   }
-  return Can0.write(msg);
+
+  return flexcan->write(msg);
 }
 
 // receives a CAN frame
-int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, UtcTime& out_ts_utc,
+int16_t CanIface::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, UtcTime& out_ts_utc,
                            CanIOFlags& out_flags)
 {
 
   CAN_message_t msg;
-  int result = Can0.read(msg);
 
+  if(!flexcan->read(msg))
+  {
+    return 0;
+  }
+
+  // save timestamp
+  out_ts_monotonic = clock::getMonotonic();
+  out_ts_utc = UtcTime();               // TODO: change to clock::getUtc() when properly implemented
 
   out_frame.id = msg.id;
   if(msg.flags.extended)
@@ -72,7 +80,6 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
     out_frame.id &= uavcan::CanFrame::MaskExtID;
     out_frame.id |= uavcan::CanFrame::FlagEFF;
   }
-  
 
   out_frame.dlc = msg.len;
   for(int i=0; i<msg.len; i++)
@@ -80,50 +87,126 @@ int16_t CanDriver::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic,
     out_frame.data[i] = msg.buf[i];
   }
 
-  
-  // save timestamp
-  out_ts_monotonic = clock::getMonotonic();
-  out_ts_utc = UtcTime();               // TODO: change to clock::getUtc() when properly implemented
-
-  return result;
+  return 1;
 }
 
-int16_t CanDriver::select(CanSelectMasks& inout_masks,
-                       const CanFrame* (&)[MaxCanIfaces],
-                       MonotonicTime blocking_deadline)
-{
-  inout_masks.read = (Can0.available() > 0) ? 1:0;
-  return 0;
-}
 
-int16_t CanDriver::configureFilters(const CanFilterConfig* filter_configs,
+
+int16_t CanIface::configureFilters(const CanFilterConfig* filter_configs,
                          uint16_t num_configs)
 {
-  Serial.println("CanDriver configureFilters");
  // TODO: Provide implementation
  return 0;
 }
 
-uint64_t CanDriver::getErrorCount() const
+uint64_t CanIface::getErrorCount() const
 {
-  return Can0.getStats().ringRxFramesLost;
+  return flexcan->rxBufferOverruns();
 }
 
-uint16_t CanDriver::getNumFilters() const
+uint16_t CanIface::getNumFilters() const
 {
+
   // TODO
   return 0;
 }
 
 
+bool CanIface::availableToReadMsg() const
+{
+  return flexcan->available() > 0;
+}
+
+bool CanIface::availableToSendMsg() const
+{
+
+  return flexcan->freeTxBuffer();
+}
+
+void CanDriver::init(const IfaceParams* params)
+{
+   #ifndef INCLUDE_FLEXCAN_CAN1
+    can0.init(params[0]);
+  #else
+    can0.init(params[0]);
+    can1.init(params[1]);
+  #endif
+}
+
+
 ICanIface* CanDriver::getIface(uint8_t iface_index)
 {
-  return (ICanIface*) &self;
+  #ifndef INCLUDE_FLEXCAN_CAN1
+    return &can0;
+  #else
+    if(0 == iface_index){
+      return &can0;
+    }else if(1 == iface_index)
+    {
+      return &can1;
+    }
+  #endif
+
+  return NULL;
 }
 
 uint8_t CanDriver::getNumIfaces() const
 {
-  return 1;
+  #ifndef INCLUDE_FLEXCAN_CAN1
+    return 1;
+  #else
+    return 2;
+  #endif
+}
+
+int16_t CanDriver::select(CanSelectMasks& inout_masks,
+                          const CanFrame* (&)[MaxCanIfaces],
+                          MonotonicTime blocking_deadline)
+{
+
+  while(clock::getMonotonic() < blocking_deadline ||
+        blocking_deadline.isZero())
+  {
+    uint8_t readyDevices = 0;
+
+    #ifndef INCLUDE_FLEXCAN_CAN1
+      inout_masks.read = can0.availableToReadMsg() ? 1:0 << 0;
+    #else
+      inout_masks.read  = can0.availableToReadMsg() ? 1:0 << 0;
+      inout_masks.read |= can1.availableToReadMsg() ? 1:0 << 1;
+    #endif
+
+    #ifndef INCLUDE_FLEXCAN_CAN1
+      inout_masks.write = can0.availableToSendMsg() ? 1:0 << 0;
+    #else
+      inout_masks.write  = can0.availableToSendMsg() > 0 ? 1:0 << 0;
+      inout_masks.write |= can1.availableToSendMsg() > 0 ? 1:0 << 1;
+    #endif
+
+    #ifndef INCLUDE_FLEXCAN_CAN1
+      if(1 == inout_masks.read || 1 == inout_masks.write)
+      {
+        readyDevices = 1;
+      }
+    #else
+      if(3 == inout_masks.read || 3 == inout_masks.write){
+        readyDevices = 2;
+      }else if(1 == inout_masks.read || 1 == inout_masks.write){
+        readyDevices = 1;
+      }
+    #endif
+
+    // if blocking_deadline is zero -> non blocking operation
+    if(readyDevices > 0 || blocking_deadline.isZero())
+    {
+      return readyDevices;
+    }
+
+  }
+
+  // deadline passed
+  return -1;
+
 }
 
 } // uavcan_nxpk20
