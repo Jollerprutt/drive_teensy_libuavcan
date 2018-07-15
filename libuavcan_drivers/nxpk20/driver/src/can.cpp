@@ -18,18 +18,17 @@ CanDriver CanDriver::self;
 // initialize can driver
 void CanIface::init(const IfaceParams& p)
 {
-  // // set mailbox and buffer sizes
+  // set mailbox and buffer sizes
   flexcan->setTxBufferSize(p.tx_buff_size);
   flexcan->setRxBufferSize(p.rx_buff_size);
   
-  // // allow everything until (correct filters may be set later)
-  CAN_filter_t empty_mask;
-  empty_mask.flags.remote = 0;
-  empty_mask.flags.extended = 0;
-  empty_mask.id = 0;
+  // default filter and mask
+  CAN_filter_t start_filter;
+  start_filter.id = 0;
+  uint32_t start_mask = p.dis_all_RX_by_default ? 0xFFFFFFFF : 0;
 
   // // start flexcan interface
-  flexcan->begin(p.bitrate, empty_mask, p.use_alt_tx_pin, p.use_alt_rx_pin);
+  flexcan->begin(p.bitrate, start_filter, start_mask, p.use_alt_tx_pin, p.use_alt_rx_pin);
 }
 
 // sends a CAN frame
@@ -93,10 +92,22 @@ int16_t CanIface::receive(CanFrame& out_frame, MonotonicTime& out_ts_monotonic, 
 
 
 int16_t CanIface::configureFilters(const CanFilterConfig* filter_configs,
-                         uint16_t num_configs)
+                                   uint16_t num_configs)
 {
- // TODO: Provide implementation
- return 0;
+  // loop over all boxes
+  for(int i=0; i<num_configs; i++)
+  {
+    // set filter
+    CAN_filter_t f;
+    f.id = filter_configs[i].id;
+    f.flags.extended = filter_configs[i].id & uavcan::CanFrame::FlagEFF;
+    f.flags.remote =   filter_configs[i].id & uavcan::CanFrame::FlagRTR;
+    flexcan->setFilter(f, i);
+
+    // set mask
+    flexcan->setMask(filter_configs[i].mask, i);
+  }
+  return 0;
 }
 
 uint64_t CanIface::getErrorCount() const
@@ -106,9 +117,8 @@ uint64_t CanIface::getErrorCount() const
 
 uint16_t CanIface::getNumFilters() const
 {
-
-  // TODO
-  return 0;
+  // one filter for each RX mailbox possible
+  return flexcan->getNumRxBoxes();
 }
 
 

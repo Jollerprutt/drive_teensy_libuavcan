@@ -16,11 +16,12 @@ namespace uavcan_nxpk20
 {
 
 struct IfaceParams{
-  uint32_t bitrate;
-  uint8_t tx_buff_size;
-  uint8_t rx_buff_size;
-  bool use_alt_tx_pin;
-  bool use_alt_rx_pin;
+  uint32_t bitrate;             // bitrate for the interface
+  uint8_t tx_buff_size;         // number of elements in the ring buffer for transmit
+  uint8_t rx_buff_size;         // number of elements in the ring buffer for receive
+  bool use_alt_tx_pin;          // use alternative tx pin
+  bool use_alt_rx_pin;          // use alternative rx pin
+  bool dis_all_RX_by_default;   // disable all RX mailboxes by default via acceptance filter
 };
 
 class CanIface:

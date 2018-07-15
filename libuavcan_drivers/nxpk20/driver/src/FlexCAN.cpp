@@ -163,7 +163,8 @@ void FlexCAN::end (void)
  * \brief Initializes the CAN bus to the given settings
  *
  * \param baud - Set the baud rate of the bus. Only certain values are valid 50000, 100000, 125000, 250000, 500000, 1000000
- * \param mask - A default mask to use for all mailbox masks. Optional.
+ * \param filter - A default filter to use for all mailbox. Optional.
+ * \param mask   - A default mask to use for all mailbox. Optional
  * \param txAlt - 1 to enable alternate Tx pin (where available)
  * \param rxAlt - 1 to enable alternate Rx pin (where available)
  *
@@ -171,7 +172,7 @@ void FlexCAN::end (void)
  *
  */
 
-void FlexCAN::begin (uint32_t baud, const CAN_filter_t &mask, uint8_t txAlt, uint8_t rxAlt)
+void FlexCAN::begin (uint32_t baud, const CAN_filter_t &filter, uint32_t mask, uint8_t txAlt, uint8_t rxAlt)
 {
     initializeBuffers();
     
@@ -219,11 +220,11 @@ void FlexCAN::begin (uint32_t baud, const CAN_filter_t &mask, uint8_t txAlt, uin
 
     FLEXCANb_MCR(flexcanBase) |= FLEXCAN_MCR_IRMQ;
 
-    // now have to set mask and filter for all the Rx mailboxes or they won't receive anything by default.
+    // now have to set mask and filter for all the Rx mailboxes or they won't receive anything by default 
 
     for (uint8_t c = 0; c < getNumRxBoxes(); c++) {
-        setMask (0, c);
-        setFilter (mask, c);
+        setMask (mask, c);
+        setFilter (filter, c);
     }
 
     // start the CAN
@@ -1224,7 +1225,7 @@ void FlexCAN::message_isr (void)
             // so after a frame comes in we've got to refresh the ID field to be the filter ID and not the ID
             // that just came in.
 
-            if (MBFilters[i].flags.extended) {
+            if (!MBFilters[i].flags.extended) {
                 FLEXCANb_MBn_ID(flexcanBase, i) = (MBFilters[i].id & FLEXCAN_MB_ID_EXT_MASK);
             } else {
                 FLEXCANb_MBn_ID(flexcanBase, i) = FLEXCAN_MB_ID_IDSTD(MBFilters[i].id);
