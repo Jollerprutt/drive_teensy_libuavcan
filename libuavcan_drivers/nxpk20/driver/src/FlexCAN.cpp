@@ -715,6 +715,23 @@ uint32_t FlexCAN::available (void)
 }
 
 /*
+ * \brief How many free buffer positions are available in tx
+ *
+ * \param None
+ *
+ * \retval A count of the number of positions available.
+ */
+
+uint32_t FlexCAN::freeTxBuffer (void)
+{
+    irqLock();
+    uint32_t tx_in_use=(ringBufferCount (txRing));
+    irqRelease();
+    
+    return sizeTxBuffer - tx_in_use;
+}
+
+/*
  * \brief Clear the collected statistics
  *
  * \param None
@@ -759,6 +776,21 @@ int FlexCAN::read (CAN_message_t &msg)
     irqRelease();
 
     return result;
+}
+
+/*
+ * \brief Returns if an TX Mailbox is available
+ *
+ * Returns whether TX mailbox is available
+ */
+bool FlexCAN::availableTXMailbox(void)
+{
+    for (uint32_t i = getFirstTxBox(); i < getNumMailBoxes(); i++) {
+        if (FLEXCAN_get_code(FLEXCANb_MBn_CS(flexcanBase, i)) == FLEXCAN_MB_CODE_TX_INACTIVE ) {
+            return true; // found one
+        }
+    }
+    return false;
 }
 
 /*

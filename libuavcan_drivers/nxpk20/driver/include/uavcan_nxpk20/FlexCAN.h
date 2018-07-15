@@ -178,6 +178,8 @@ public:
     void setMask (uint32_t mask, uint8_t n);
     void end (void);
     uint32_t available (void);
+    uint32_t freeTxBuffer (void);
+    bool availableTXMailbox(void);
     int write (const CAN_message_t &msg);
     int write (const CAN_message_t &msg, uint8_t n);
     int read (CAN_message_t &msg);
