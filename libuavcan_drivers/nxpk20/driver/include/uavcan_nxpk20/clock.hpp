@@ -1,8 +1,3 @@
-/*
- * Teensy 3.2 header for UAVCAN
- * @author fwindolf - Florian Windolf  florianwindolf@gmail.com
- */
-
 #pragma once
 
 #include <uavcan/driver/system_clock.hpp>
@@ -16,6 +11,11 @@ namespace clock
  * Starts the clock, after first init calling the function will not do anything
  */
 void init();
+
+/*
+ * Updates time and empties ellapsed time.
+ */
+// void sampleTime();
 
 /**
  *  Returns the elapsed MonotonicTime since init() was called
@@ -37,19 +37,16 @@ void adjustUtc(uavcan::UtcDuration adjustment);
  */
 uavcan::UtcDuration getPrevUtcAdjustment();
 
-} // clock
+}
+
+/**
+ * Adapter for uavcan::ISystemClock.
+ */
 
 class SystemClock :
   public uavcan::ISystemClock,
   public uavcan::Noncopyable
 {
-public:
-  /**
-   * Return the only instance of SystemClock, init if needed
-   */
-  static SystemClock& instance();
-
-
 private:
   /*
    * Instance of SystemClock
@@ -58,21 +55,15 @@ private:
 
   SystemClock() { }
 
-  uavcan::MonotonicTime getMonotonic() const override
-  {
-    return clock::getMonotonic();
-  }
+  uavcan::MonotonicTime getMonotonic()      const override { return clock::getMonotonic(); }
+  uavcan::UtcTime getUtc()                  const override { return clock::getUtc(); }
+  void adjustUtc(uavcan::UtcDuration adjustment)  override { clock::adjustUtc(adjustment); }
 
-  uavcan::UtcTime getUtc() const override
-  {
-    return clock::getUtc();
-  }
-
-  void adjustUtc(uavcan::UtcDuration adjustment) override
-  {
-    clock::adjustUtc(adjustment);
-  }
+public:
+  /**
+   * Calls clock::init() as needed.
+   */
+  static SystemClock& instance();
 };
-
 
 } // uavcan_nxpk20
